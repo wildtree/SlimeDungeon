@@ -5,19 +5,85 @@ using SlimeDungeon.Domain;
 namespace SlimeDungeon.Data;
 
 /// <summary>
-/// Plain JSON persistence under &lt;exe dir&gt;/saves/. Not encrypted yet (a later concern per the design doc).
+/// Plain JSON persistence in the per-user application data directory. Not encrypted yet (a later concern per
+/// the design doc). Saves deliberately do not live beside the executable: that directory is build output, so a
+/// rebuild that changes the target framework — or any clean of bin/ — takes the player's character with it.
 /// </summary>
 public static class SaveManager
 {
-    private static readonly string SavesDir = Path.Combine(AppContext.BaseDirectory, "saves");
+    private const string VendorFolder = "WildTreeJP";
+    private const string GameFolder = "SlimeDungeon";
+
+    private static readonly string SavesDir = ResolveSaveDirectory();
     private static readonly string CharacterPath = Path.Combine(SavesDir, "character.json");
     private static readonly string HistoryPath = Path.Combine(SavesDir, "history.json");
+
+    /// <summary>Where saves used to live, kept only so an existing character can be moved across once.</summary>
+    private static readonly string LegacySavesDir = Path.Combine(AppContext.BaseDirectory, "saves");
 
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
+
+    static SaveManager() => MigrateLegacySaves();
+
+    /// <summary>Exposed so the player can be told where their save actually lives.</summary>
+    public static string SaveDirectory => SavesDir;
+
+    /// <summary>
+    /// The per-user data directory for this game. <see cref="Environment.SpecialFolder.LocalApplicationData"/>
+    /// already resolves to AppData\Local on Windows and to $XDG_DATA_HOME (defaulting to ~/.local/share) on
+    /// Linux; macOS gets its own conventional location instead, since .NET would otherwise put it under
+    /// ~/.local/share there too.
+    /// </summary>
+    private static string ResolveSaveDirectory()
+    {
+        string root;
+        if (OperatingSystem.IsMacOS())
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            root = Path.Combine(home, "Library", "Application Support");
+        }
+        else
+        {
+            root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        }
+
+        // Some sandboxes report no home directory at all; fall back rather than throwing on startup.
+        if (string.IsNullOrEmpty(root))
+            root = AppContext.BaseDirectory;
+
+        return Path.Combine(root, VendorFolder, GameFolder);
+    }
+
+    /// <summary>
+    /// Moves a character saved by an older build out of the executable directory. Copies rather than moves, so
+    /// a failure part-way through cannot destroy the only copy. Never throws: a migration problem must not stop
+    /// the game from starting.
+    /// </summary>
+    private static void MigrateLegacySaves()
+    {
+        try
+        {
+            if (!Directory.Exists(LegacySavesDir) || File.Exists(CharacterPath))
+                return;
+
+            Directory.CreateDirectory(SavesDir);
+            foreach (var name in new[] { "character.json", "history.json" })
+            {
+                var from = Path.Combine(LegacySavesDir, name);
+                var to = Path.Combine(SavesDir, name);
+                if (File.Exists(from) && !File.Exists(to))
+                    File.Copy(from, to);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            Console.Error.WriteLine($"Could not migrate saves from '{LegacySavesDir}': {ex.Message}");
+        }
+    }
 
     public static bool HasSave => File.Exists(CharacterPath);
 
