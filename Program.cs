@@ -1,0 +1,87 @@
+using SDL3;
+using SlimeDungeon.Core;
+using SlimeDungeon.Graphics;
+using SlimeDungeon.Guild;
+using SlimeDungeon.UI;
+
+if (!SDL.Init(SDL.InitFlags.Video))
+{
+    Console.Error.WriteLine($"SDL.Init failed: {SDL.GetError()}");
+    return 1;
+}
+
+if (!SDL.CreateWindowAndRenderer("Slime Dungeon", 640, 400, SDL.WindowFlags.Resizable, out var window, out var rendererHandle))
+{
+    Console.Error.WriteLine($"CreateWindowAndRenderer failed: {SDL.GetError()}");
+    SDL.Quit();
+    return 1;
+}
+
+SDL.SetRenderLogicalPresentation(rendererHandle, 640, 400, SDL.RendererLogicalPresentation.Letterbox);
+
+var renderer = new Renderer(rendererHandle);
+using var fonts = new FontService();
+using var sprites = SpriteFactory.BuildAll(rendererHandle);
+var input = new InputManager();
+var screens = new ScreenManager();
+
+var ctx = new GameContext
+{
+    Renderer = renderer,
+    Input = input,
+    Fonts = fonts,
+    Screens = screens,
+    Sprites = sprites,
+    Window = window,
+};
+
+screens.ChangeTo(new TitleScreen());
+screens.ApplyPendingTransition(ctx);
+
+var inventoryOverlay = new InventoryOverlay();
+var killLogOverlay = new KillLogOverlay();
+
+var lastTicks = SDL.GetTicks();
+while (!input.QuitRequested)
+{
+    input.BeginFrame();
+
+    while (SDL.PollEvent(out var ev))
+        input.HandleEvent(ev);
+
+    var nowTicks = SDL.GetTicks();
+    var dt = (nowTicks - lastTicks) / 1000f;
+    lastTicks = nowTicks;
+
+    screens.ApplyPendingTransition(ctx);
+
+    // Snapshot overlay state from *before* this frame's key presses are applied, so the same
+    // WasPressed(I)/WasPressed(S) edge that opens an overlay can't also reach its close-check below.
+    var overlayActiveBeforeInput = ctx.ShowInventory || ctx.ShowKillLog;
+    if (!overlayActiveBeforeInput && ctx.Player is not null)
+    {
+        if (input.WasPressed(SDL.Keycode.I)) ctx.ShowInventory = true;
+        else if (input.WasPressed(SDL.Keycode.S)) ctx.ShowKillLog = true;
+    }
+
+    if (overlayActiveBeforeInput && ctx.ShowInventory)
+        inventoryOverlay.Update(ctx, dt);
+    else if (overlayActiveBeforeInput && ctx.ShowKillLog)
+        killLogOverlay.Update(ctx, dt);
+    else if (!overlayActiveBeforeInput && !ctx.ShowInventory && !ctx.ShowKillLog)
+        screens.Current.Update(ctx, dt);
+
+    screens.Current.Draw(ctx);
+    if (ctx.ShowInventory)
+        inventoryOverlay.Draw(ctx);
+    else if (ctx.ShowKillLog)
+        killLogOverlay.Draw(ctx);
+
+    renderer.Present();
+}
+
+SDL.StopTextInput(window);
+SDL.DestroyRenderer(rendererHandle);
+SDL.DestroyWindow(window);
+SDL.Quit();
+return 0;
