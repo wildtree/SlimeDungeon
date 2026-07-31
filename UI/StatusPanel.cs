@@ -26,19 +26,26 @@ public static class StatusPanel
         var cardBottom = DrawGuildCard(ctx, player, x + pad, y + pad, Width - pad * 2);
         var cy = cardBottom + 10;
 
-        fonts.DrawText(r.Handle, $"STR {player.EffectiveStr,3}   INT {player.EffectiveInt,3}", cx, cy, 10, Colors.White);
-        cy += 14;
-        fonts.DrawText(r.Handle, $"DEX {player.EffectiveDex,3}   AGL {player.EffectiveAgl,3}", cx, cy, 10, Colors.White);
-        cy += 14;
-        fonts.DrawText(r.Handle, $"DEF {player.TotalDef,3}", cx, cy, 10, Colors.White);
-        cy += 18;
-        fonts.DrawText(r.Handle, $"所持金 {player.Gold} G", cx, cy, 11, Colors.Gold);
-        cy += 20;
+        // Stats in two labelled columns rather than one long line, which lets them go up a size and still fit.
+        var col2 = cx + 108;
+        fonts.DrawText(r.Handle, $"STR {player.EffectiveStr,3}", cx, cy, 12, Colors.White);
+        fonts.DrawText(r.Handle, $"INT {player.EffectiveInt,3}", col2, cy, 12, Colors.White);
+        cy += 17;
+        fonts.DrawText(r.Handle, $"DEX {player.EffectiveDex,3}", cx, cy, 12, Colors.White);
+        fonts.DrawText(r.Handle, $"AGL {player.EffectiveAgl,3}", col2, cy, 12, Colors.White);
+        cy += 17;
+        fonts.DrawText(r.Handle, $"DEF {player.TotalDef,3}", cx, cy, 12, Colors.White);
+        var gold = $"{player.Gold} G";
+        var (goldW, _) = fonts.Measure(gold, 12);
+        fonts.DrawText(r.Handle, gold, x + Width - pad - goldW, cy, 12, Colors.Gold);
+        cy += 21;
 
-        // Eight rows where there were six, so the rows and the spacing below them are tighter and the date is
-        // one line instead of two — otherwise the block runs into the key hints along the bottom.
-        fonts.DrawText(r.Handle, "装備", cx, cy, 10, Colors.Highlight);
-        cy += 13;
+        // A rule under the heading, so the equipment reads as its own block instead of running on from the
+        // numbers above it.
+        fonts.DrawText(r.Handle, "装備", cx, cy, 11, Colors.Highlight);
+        r.FillRect(cx + 30, cy + 7, Width - pad * 2 - 30, 1, Colors.Rgb(70, 66, 60));
+        cy += 16;
+
         foreach (var slot in new[]
                  {
                      EquipSlot.RightHand, EquipSlot.LeftHand, EquipSlot.Arm, EquipSlot.Body,
@@ -48,21 +55,25 @@ public static class StatusPanel
             var name = player.Equipment.TryGetValue(slot, out var item) ? item.Name : "-";
             // The item slots are what the player can actually reach in a fight, so they are picked out rather
             // than reading as two more lines of gear.
+            var filled = player.Equipment.ContainsKey(slot);
             var color = IsItemSlot(slot)
-                ? player.Equipment.ContainsKey(slot) ? Colors.Highlight : Colors.Border
-                : Colors.White;
-            fonts.DrawText(r.Handle, $"{SlotLabel(slot)}: {name}", cx, cy, 9, color);
-            cy += 11;
+                ? filled ? Colors.Highlight : Colors.Border
+                : filled ? Colors.White : Colors.Border;
+
+            // The slot name sits in a fixed column so the item names line up down the panel.
+            fonts.DrawText(r.Handle, SlotLabel(slot), cx, cy, 10, Colors.Rgb(150, 145, 136));
+            fonts.DrawText(r.Handle, name, cx + 52, cy, 10, color);
+            cy += 14;
         }
 
         // The bag is worn like everything else, so it reads as the last equipment row rather than a separate
         // line — which also keeps its contents count without spending another row on it.
+        fonts.DrawText(r.Handle, "鞄", cx, cy, 10, Colors.Rgb(150, 145, 136));
         var bagName = player.EquippedBag?.Name ?? "-";
-        fonts.DrawText(r.Handle, $"鞄: {bagName} ({player.Bag.Count}/{player.BagCapacity})", cx, cy, 9, Colors.Highlight);
-        cy += 15;
-        var today = GameCalendar.FromDayNumber(player.DayCount);
-        fonts.DrawText(r.Handle, $"新暦{GameCalendar.YearLabel(today.Year)} {today.MonthName}{today.Day}日",
-            cx, cy, 9, Colors.White);
+        fonts.DrawText(r.Handle, bagName, cx + 52, cy, 10, Colors.Highlight);
+        var capacity = $"{player.Bag.Count}/{player.BagCapacity}";
+        var (capW, _) = fonts.Measure(capacity, 10);
+        fonts.DrawText(r.Handle, capacity, x + Width - pad - capW, cy, 10, Colors.Highlight);
 
         fonts.DrawText(r.Handle, "[I]持ち物 [S]討伐記録", x + pad, y + h - 18, 9, Colors.Border);
     }
@@ -139,9 +150,13 @@ public static class StatusPanel
         fonts.DrawText(r.Handle, "RANK", sx + seal + 6, sy + 1, 8, inkSoft);
         fonts.DrawText(r.Handle, $"LV {player.Level}", sx + seal + 6, sy + 11, 12, ink);
 
-        // Registration date, the way a licence carries an issue date.
+        // Issue date, the way a licence carries one — and today's date under it, which is what quest deadlines
+        // are counted against. Today's used to be a line of its own at the foot of the panel; moving it onto
+        // the card is what freed the room for the equipment list below to be legible.
         var reg = GameCalendar.FromDayNumber(player.StartDay);
-        fonts.DrawText(r.Handle, $"登録 {reg.MonthName}{reg.Day}日", x + w - 84, y + headerH + 6, 8, inkSoft);
+        var today = GameCalendar.FromDayNumber(player.DayCount);
+        DrawRightAligned(ctx, $"登録 {reg.MonthName}{reg.Day}日", x + w - 8, y + headerH + 5, 8, inkSoft);
+        DrawRightAligned(ctx, $"本日 {today.MonthName}{today.Day}日", x + w - 8, y + headerH + 16, 9, ink);
 
         // Vitals across the foot of the card.
         var barX = x + 8;
@@ -154,6 +169,12 @@ public static class StatusPanel
         DrawCardBar(ctx, barX, by, barW, "EXP", player.Exp, player.ExpToNext, Colors.ExpBar, ink);
 
         return y + h;
+    }
+
+    private static void DrawRightAligned(GameContext ctx, string text, float right, float y, float size, SDL3.SDL.Color color)
+    {
+        var (w, _) = ctx.Fonts.Measure(text, size);
+        ctx.Fonts.DrawText(ctx.Renderer.Handle, text, right - w, y, size, color);
     }
 
     /// <summary>A card number that is stable for a given adventurer without needing to be stored anywhere.</summary>

@@ -53,6 +53,10 @@ while (!input.QuitRequested)
     var dt = (nowTicks - lastTicks) / 1000f;
     lastTicks = nowTicks;
 
+    // Text is rasterised at the window's real pixel size rather than at the 640x400 logical size, so the
+    // font service needs to know how far the window is currently being stretched.
+    fonts.RefreshPixelScale(rendererHandle);
+
     screens.ApplyPendingTransition(ctx);
 
     // Snapshot overlay state from *before* this frame's key presses are applied, so the same

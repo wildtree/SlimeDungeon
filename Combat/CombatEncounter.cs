@@ -20,13 +20,19 @@ public sealed class CombatEncounter
     public bool BattleOver { get; private set; }
     public bool PlayerWon { get; private set; }
     public bool PlayerFled { get; private set; }
-    public int GoldReward { get; private set; }
     public int ExpReward { get; private set; }
+
+    /// <summary>What was actually brought down, for the end-of-battle summary.</summary>
+    public List<Slime> Defeated { get; } = new();
+
+    /// <summary>Slimes that got away — white ones mostly. They are worth nothing.</summary>
+    public List<Slime> Escaped { get; } = new();
 
     /// <summary>Set on victory when the EXP award pushed the player up at least one level; null otherwise.</summary>
     public LevelUpSummary? LevelUp { get; private set; }
 
-    public List<Slime> AliveEnemies => Enemies.Where(e => !e.Stats.IsDead).ToList();
+    /// <summary>Enemies still in the fight. A slime that has run away is as gone as a dead one.</summary>
+    public List<Slime> AliveEnemies => Enemies.Where(e => e.IsEngaged).ToList();
 
     /// <summary>Sum of every (living or not) enemy's AGL — used only for the flee-chance formula, which the
     /// spec defines against the opposing side's combined AGL rather than any single enemy.</summary>
@@ -48,18 +54,7 @@ public sealed class CombatEncounter
 
     private void AddLog(string msg) => Log.Add(msg);
 
-    // ---- Physical / magic damage formulas -------------------------------------------------
-
-    /// <summary>
-    /// Attack power with a small spread, then armour subtracted outright. The old formula reduced damage by
-    /// only |N(0, DEF/2)| — about 1.2 points for DEF 3 — which made armour almost decorative and let any
-    /// above-rank monster one-shot the player. Subtracting DEF directly is what makes equipment matter.
-    /// </summary>
-    private static int PhysicalDamage(int attackerStr, int defenderDef)
-    {
-        var spread = Math.Clamp(RandomUtil.Shared.NextGaussian(1.0, 0.14), 0.65, 1.35);
-        return Math.Max(0, (int)Math.Floor(attackerStr * spread) - defenderDef);
-    }
+    // ---- Damage -----------------------------------------------------------------------------
 
     private static string MatchupNote(Matchup matchup) => matchup switch
     {
@@ -68,39 +63,61 @@ public sealed class CombatEncounter
         _ => "",
     };
 
-    private static int MagicDamage(int casterInt, int defenderDef, Matchup matchup)
+    /// <summary>How an elemental matchup moves an attack along the rank ladder.</summary>
+    private static int MatchupSteps(Matchup matchup) => matchup switch
     {
-        var rnd = RandomUtil.Shared;
-        switch (matchup)
-        {
-            case Matchup.Advantage:
-            {
-                var r = Math.Max(1.1, rnd.NextGaussian(1.2, 0.2));
-                return Math.Max(0, (int)Math.Floor(casterInt * r));
-            }
-            case Matchup.Disadvantage:
-            {
-                var r = Math.Min(0.9, rnd.NextGaussian(0.8, 0.2));
-                return Math.Max(0, (int)Math.Floor(casterInt * r));
-            }
-            default:
-            {
-                var r = rnd.NextGaussian(0, defenderDef / 2.0);
-                return Math.Max(0, casterInt - (int)Math.Floor(Math.Abs(r)));
-            }
-        }
-    }
+        Matchup.Advantage => 1,
+        Matchup.Disadvantage => -1,
+        _ => 0,
+    };
 
     // ---- Player actions ---------------------------------------------------------------------
 
     public ActionResult PlayerAttack(Slime target)
     {
-        var dmg = PhysicalDamage(Player.EffectiveStr, TargetDef(target));
+        // Steel finds nothing to bite on a white slime. It still counts as having been attacked, which is the
+        // only thing that will make one turn and fight.
+        if (target.IsWhite)
+        {
+            var noEffect = $"{Player.Name}の攻撃！ しかし{target.DisplayLabel}には武器が効かない";
+            AddLog(noEffect);
+            TryWhiteCounter(target);
+            return new ActionResult(ActionOutcome.NoEffect, 0, noEffect);
+        }
+
+        var roll = CombatMath.Roll();
+        if (roll.IsFailure)
+        {
+            var missed = $"{Player.Name}の攻撃は外れた";
+            AddLog(missed);
+            return new ActionResult(ActionOutcome.Miss, 0, missed);
+        }
+
+        var effectiveRank = Player.WeaponAttackRank + roll.RankSteps;
+        var dmg = Math.Max(0,
+            CombatMath.AttackDamage(effectiveRank, CombatMath.StatBonus(Player.EffectiveStr)) - target.Def);
         ApplyDamage(target, dmg);
-        var msg = dmg > 0 ? $"{Player.Name}の攻撃！ {target.DisplayLabel}に{dmg}のダメージ" : $"{Player.Name}の攻撃は外れた";
+
+        var crit = roll.IsCritical ? "会心の一撃！ " : "";
+        var msg = $"{crit}{Player.Name}の攻撃！ {target.DisplayLabel}に{dmg}のダメージ";
         AddLog(msg);
         CheckVictory();
         return new ActionResult(ActionOutcome.Hit, dmg, msg);
+    }
+
+    /// <summary>
+    /// A white slime does not start fights, but it will hit back — about half the time — at anything that has
+    /// just struck at it, whether or not the blow actually did anything.
+    /// </summary>
+    private const double WhiteCounterChance = 0.5;
+
+    private void TryWhiteCounter(Slime slime)
+    {
+        if (BattleOver || !slime.IsEngaged || RandomUtil.Shared.NextDouble() >= WhiteCounterChance)
+            return;
+
+        AddLog($"{slime.DisplayLabel}の反撃！");
+        StrikePlayer(slime);
     }
 
     public ActionResult PlayerCastSpell(LearnedSpell spell, Slime? target)
@@ -112,27 +129,47 @@ public sealed class CombatEncounter
 
         Player.Stats.Mp -= cost;
         Player.Counters.SpellsCast++;
-        var effectiveInt = Player.EffectiveInt + (int)spell.Rank * 2;
 
         switch (def.Effect)
         {
             case SpellEffect.Attack:
             {
-                // Attack magic always covers the whole pack. That, plus the elemental matchup multiplier, is
-                // what it buys for its MP: a plain attack is free but hits one slime, so magic earns its keep
-                // against groups and against colors it is strong into.
+                // Attack magic still covers the whole pack — that is what it buys for its MP. What it no
+                // longer does is scale without limit: its damage is fixed by the spell's own rank, so a spell
+                // kills slimes of its rank and no higher unless the element or a critical carries it up one.
                 var targets = AliveEnemies;
-                var total = 0;
                 AddLog($"{Player.Name}の{def.Name}！");
+
+                // One roll for the whole casting. A fizzled spell costs the MP anyway, which is the price of
+                // reaching for magic instead of a weapon.
+                var roll = CombatMath.Roll();
+                if (roll.IsFailure)
+                {
+                    var failed = "しかし まほうは失敗した！";
+                    AddLog(failed);
+                    return new ActionResult(ActionOutcome.Miss, 0, failed);
+                }
+
+                if (roll.IsCritical)
+                    AddLog("会心のまほう！");
+
+                var total = 0;
                 foreach (var enemy in targets)
                 {
                     var vsMonster = Domain.ElementExtensions.GetMatchup(def.Element, ElementForDefense(enemy));
                     var matchupAdj = CombineWithDungeon(vsMonster, def.Element);
-                    var dmg = MagicDamage(effectiveInt, TargetDef(enemy), matchupAdj);
+                    var effectiveRank = (int)spell.Rank + MatchupSteps(matchupAdj) + roll.RankSteps;
+                    var dmg = Math.Max(0,
+                        CombatMath.AttackDamage(effectiveRank, CombatMath.StatBonus(Player.EffectiveInt)) - enemy.Def);
                     ApplyDamage(enemy, dmg);
                     total += dmg;
                     AddLog($"  {enemy.DisplayLabel}に{dmg}のダメージ{MatchupNote(matchupAdj)}");
                 }
+
+                // Anything white that survived the blast gets its chance to hit back.
+                foreach (var enemy in targets.Where(e => e.IsWhite && e.IsEngaged).ToList())
+                    TryWhiteCounter(enemy);
+
                 CheckVictory();
                 return new ActionResult(ActionOutcome.Hit, total, $"{def.Name}で{targets.Count}体に合計{total}のダメージ");
             }
@@ -241,14 +278,58 @@ public sealed class CombatEncounter
 
     // ---- Enemy turn --------------------------------------------------------------------------
 
+    /// <summary>How often a white slime succeeds in slipping away on its turn.</summary>
+    private const double WhiteFleeChance = 0.6;
+
     public ActionResult EnemyTurn(Slime enemy)
     {
-        // Rank H dungeons used to halve incoming damage. That was a workaround for the old formula, where
-        // armour barely mitigated anything and an above-rank monster could one-shot you; now that DEF is
-        // subtracted directly it only made a beginner's first fights completely harmless.
-        var dmg = PhysicalDamage(enemy.Stats.Str, Player.TotalDef);
+        if (!enemy.IsEngaged)
+            return new ActionResult(ActionOutcome.NoEffect, 0, "");
+
+        // A white slime has no interest in a fight and spends its turns looking for a way out.
+        if (enemy.IsWhite)
+        {
+            if (RandomUtil.Shared.NextDouble() < WhiteFleeChance)
+            {
+                enemy.HasFled = true;
+                Escaped.Add(enemy);
+                var gone = $"{enemy.DisplayLabel}は逃げていった…";
+                AddLog(gone);
+                CheckVictory();
+                return new ActionResult(ActionOutcome.Fled, 0, gone);
+            }
+
+            var hesitated = $"{enemy.DisplayLabel}は逃げ道を探している";
+            AddLog(hesitated);
+            return new ActionResult(ActionOutcome.NoEffect, 0, hesitated);
+        }
+
+        return StrikePlayer(enemy);
+    }
+
+    /// <summary>
+    /// A slime's blow. Rank H dungeons used to halve incoming damage; that was a workaround for an older
+    /// formula where armour barely mitigated anything. Slimes roll for a critical or a fumble on the same
+    /// curve the player does — luck cuts both ways.
+    /// </summary>
+    private ActionResult StrikePlayer(Slime enemy)
+    {
+        var roll = CombatMath.Roll();
+        if (roll.IsFailure)
+        {
+            var missed = $"{enemy.DisplayLabel}の攻撃は外れた";
+            AddLog(missed);
+            return new ActionResult(ActionOutcome.Miss, 0, missed);
+        }
+
+        var power = roll.IsCritical
+            ? (int)Math.Round(enemy.Stats.Str * CombatMath.RankStep)
+            : enemy.Stats.Str;
+        var dmg = Math.Max(0, power - Player.TotalDef);
         Player.Stats.Hp = Math.Max(0, Player.Stats.Hp - dmg);
-        var msg = $"{enemy.DisplayLabel}の攻撃！ {dmg}のダメージ";
+
+        var crit = roll.IsCritical ? "痛恨の一撃！ " : "";
+        var msg = $"{crit}{enemy.DisplayLabel}の攻撃！ {dmg}のダメージ";
 
         if (enemy.IsPoison && dmg >= 1 && !PlayerPoisoned)
         {
@@ -278,25 +359,32 @@ public sealed class CombatEncounter
 
     // ---- End-of-battle bookkeeping -----------------------------------------------------------
 
+    /// <summary>
+    /// The battle ends once nothing is left facing the player, whether it died or ran. Only the dead count
+    /// for EXP and for the guild's bounty — a white slime that got away leaves you with nothing to show.
+    /// </summary>
     private void CheckVictory()
     {
-        if (BattleOver || Enemies.Any(e => !e.Stats.IsDead))
+        if (BattleOver || Enemies.Any(e => e.IsEngaged))
             return;
 
         BattleOver = true;
-        PlayerWon = true;
         PlayerPoisoned = false;
-        Player.Counters.BattlesWon++;
 
-        foreach (var e in Enemies)
+        foreach (var e in Enemies.Where(e => e.Stats.IsDead))
         {
+            Defeated.Add(e);
             Player.RecordKill(e.Color, e.Rank);
             ExpReward += e.ExpValue(DungeonElement);
         }
-        GoldReward = Enemies.Sum(e => (int)e.Rank * 3);
-        Player.EarnGold(GoldReward);
+
+        PlayerWon = Defeated.Count > 0;
+        if (PlayerWon)
+            Player.Counters.BattlesWon++;
+
+        // No purse comes off a slime. The tally goes to the guild, which pays for the trip's work at the desk.
         LevelUp = Player.AddExp(ExpReward);
-        AddLog($"勝利！ EXP {ExpReward} 獲得、{GoldReward}G 獲得");
+        AddLog(Defeated.Count > 0 ? $"勝利！ EXP {ExpReward} 獲得" : "スライムは逃げ去った…");
         if (LevelUp is { } up)
             AddLog($"レベルが{up.ToLevel}に上がった！");
     }
@@ -310,8 +398,6 @@ public sealed class CombatEncounter
             AddLog($"{Player.Name}は倒れてしまった…");
         }
     }
-
-    private int TargetDef(Slime target) => 0;
 
     private Element ElementForDefense(Slime target) => target.Element;
 

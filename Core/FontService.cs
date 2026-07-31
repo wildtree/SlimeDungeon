@@ -121,6 +121,44 @@ public sealed class FontService : IDisposable
     private const int SweepIntervalFrames = 300;
     private const int MaxIdleFrames = 180;
 
+    /// <summary>
+    /// How many real pixels the window currently devotes to one logical pixel. The game draws into a fixed
+    /// 640x400 space that SDL stretches to fill the window, so at a 2x window this is 2.
+    /// </summary>
+    private float _pixelScale = 1f;
+
+    /// <summary>
+    /// Glyphs are rasterised at <see cref="_pixelScale"/> times their logical size, so a 10pt label in a
+    /// double-size window is drawn from a 20px rendering rather than a 10px one blown up. Beyond this the
+    /// gain is invisible and the texture cache starts to cost real memory.
+    /// </summary>
+    private const float MaxPixelScale = 4f;
+
+    /// <summary>
+    /// Re-reads the window's current pixel scale; call once a frame. Text rendered before this reflects the
+    /// old scale, which matters only for the single frame in which the window is resized.
+    /// </summary>
+    public void RefreshPixelScale(IntPtr renderer)
+    {
+        if (!SDL.GetCurrentRenderOutputSize(renderer, out var outW, out var outH) || outW <= 0 || outH <= 0)
+            return;
+        SDL.GetRenderLogicalPresentation(renderer, out var logicalW, out var logicalH, out _);
+        if (logicalW <= 0 || logicalH <= 0)
+            return;
+
+        // Letterboxing fits the smaller of the two ratios, which is the scale actually applied to what we draw.
+        var scale = Math.Min((float)outW / logicalW, (float)outH / logicalH);
+        _pixelScale = Math.Clamp(scale, 1f, MaxPixelScale);
+    }
+
+    /// <summary>
+    /// The font size to rasterise at for a given on-screen size. Rounded to whole pixels because TTF hinting
+    /// works in whole pixels, and quantised so that dragging a window edge does not rebuild the entire glyph
+    /// cache on every single frame of the drag.
+    /// </summary>
+    private float PixelSizeFor(float logicalSize) =>
+        Math.Max(1f, MathF.Round(logicalSize * MathF.Round(_pixelScale * 4f) / 4f));
+
     private readonly record struct CachedText(IntPtr Texture, int Width, int Height, int LastUsedFrame);
 
     public FontService()
@@ -141,6 +179,10 @@ public sealed class FontService : IDisposable
         font = TTF.OpenFont(_fontPath, size);
         if (font == IntPtr.Zero)
             throw new InvalidOperationException($"TTF.OpenFont failed: {SDL.GetError()}");
+
+        // Light hinting stops stems being snapped hard onto the pixel grid at the many sizes this UI asks
+        // for, which is most of what makes small Japanese text read as type rather than as lumps.
+        TTF.SetFontHinting(font, TTF.HintingFlags.Light);
         _fontsBySize[size] = font;
         return font;
     }
@@ -151,7 +193,10 @@ public sealed class FontService : IDisposable
         if (string.IsNullOrEmpty(text))
             return;
 
-        var (tex, w, h) = GetOrCreateTexture(renderer, text, size, color);
+        // Destination measured in logical units, texture rasterised at real pixels: the layout stays put
+        // while the lettering itself gets re-rendered sharper as the window grows.
+        var (w, h) = Measure(text, size);
+        var tex = GetOrCreateTexture(renderer, text, size, color);
         var dst = new SDL.FRect { X = x, Y = y, W = w, H = h };
         SDL.RenderTexture(renderer, tex, IntPtr.Zero, dst);
     }
@@ -166,17 +211,18 @@ public sealed class FontService : IDisposable
         return (w, h);
     }
 
-    private (IntPtr Texture, int Width, int Height) GetOrCreateTexture(IntPtr renderer, string text, float size, SDL.Color color)
+    private IntPtr GetOrCreateTexture(IntPtr renderer, string text, float size, SDL.Color color)
     {
         _frame++;
-        var key = $"{size}{color.R},{color.G},{color.B},{color.A}{text}";
+        var pixelSize = PixelSizeFor(size);
+        var key = $"{pixelSize}{color.R},{color.G},{color.B},{color.A}{text}";
         if (_cache.TryGetValue(key, out var cached))
         {
             _cache[key] = cached with { LastUsedFrame = _frame };
-            return (cached.Texture, cached.Width, cached.Height);
+            return cached.Texture;
         }
 
-        var font = GetFont(size);
+        var font = GetFont(pixelSize);
         var surface = TTF.RenderTextBlended(font, text, (UIntPtr)0, color);
         if (surface == IntPtr.Zero)
             throw new InvalidOperationException($"TTF.RenderTextBlended failed: {SDL.GetError()}");
@@ -184,7 +230,10 @@ public sealed class FontService : IDisposable
         var texture = SDL.CreateTextureFromSurface(renderer, surface);
         SDL.GetTextureSize(texture, out var fw, out var fh);
         SDL.DestroySurface(surface);
-        SDL.SetTextureScaleMode(texture, SDL.ScaleMode.Nearest);
+        // Linear, unlike the pixel-art sprites. The glyph texture is close to its destination size but
+        // rarely an exact multiple of it, and smoothing that last fraction is the difference between
+        // clean type and stair-stepped edges. Sprites stay on nearest so the art keeps its hard edges.
+        SDL.SetTextureScaleMode(texture, SDL.ScaleMode.Linear);
 
         var entry = new CachedText(texture, (int)fw, (int)fh, _frame);
         _cache[key] = entry;
@@ -192,7 +241,7 @@ public sealed class FontService : IDisposable
         if (_frame % SweepIntervalFrames == 0)
             SweepStaleEntries();
 
-        return (texture, entry.Width, entry.Height);
+        return texture;
     }
 
     private void SweepStaleEntries()

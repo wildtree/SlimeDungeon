@@ -148,6 +148,36 @@ public sealed class Player
     [JsonIgnore]
     public int TotalDef => Equipment.Values.Where(i => i.Category is ItemCategory.Armor or ItemCategory.Helmet or ItemCategory.Shield).Sum(i => i.Def);
 
+    /// <summary>Whatever is in the hands, weapons only — a shield is not something you hit with.</summary>
+    [JsonIgnore]
+    public List<Item> EquippedWeapons =>
+        new[] { EquipSlot.RightHand, EquipSlot.LeftHand }
+            .Where(Equipment.ContainsKey)
+            .Select(s => Equipment[s])
+            .Where(i => i.Category == ItemCategory.Weapon)
+            .ToList();
+
+    [JsonIgnore]
+    public bool IsDualWielding => EquippedWeapons.Count >= 2;
+
+    /// <summary>
+    /// The rank an armed attack lands at: the better weapon's own rank, plus one for fighting with a blade in
+    /// each hand — which is exactly what lets a two-weapon adventurer finish off slimes a rank above their
+    /// gear. Bare-handed comes out below rank H, so fists cannot reliably fell even the weakest slime.
+    /// </summary>
+    [JsonIgnore]
+    public double WeaponAttackRank
+    {
+        get
+        {
+            var weapons = EquippedWeapons;
+            if (weapons.Count == 0)
+                return 0;
+            var best = weapons.Max(w => (int)w.Rank);
+            return weapons.Count >= 2 ? best + 1 : best;
+        }
+    }
+
     public static Player CreateNew(string name, Gender gender)
     {
         var p = new Player { Name = name, Gender = gender };
@@ -205,6 +235,38 @@ public sealed class Player
     {
         var key = $"{color}:{rank}";
         KillCounts[key] = KillCounts.GetValueOrDefault(key) + 1;
+        UnclaimedKills[key] = UnclaimedKills.GetValueOrDefault(key) + 1;
+    }
+
+    /// <summary>
+    /// Slimes felled since the last visit to the bounty desk, keyed exactly as <see cref="KillCounts"/> is.
+    /// Kept separate from the lifetime record because this one gets emptied every time the guild pays out.
+    /// </summary>
+    public Dictionary<string, int> UnclaimedKills { get; set; } = new();
+
+    /// <summary>The pending claim, worst slimes first so the headline of a trip is at the top.</summary>
+    [JsonIgnore]
+    public List<BountyLine> PendingBounty => UnclaimedKills
+        .Select(kv =>
+        {
+            var parts = kv.Key.Split(':');
+            return new BountyLine(Enum.Parse<SlimeColor>(parts[0]), Enum.Parse<Rank>(parts[1]), kv.Value);
+        })
+        .OrderByDescending(l => l.Total)
+        .ThenByDescending(l => l.Rank)
+        .ToList();
+
+    [JsonIgnore]
+    public int PendingBountyTotal => PendingBounty.Sum(l => l.Total);
+
+    /// <summary>Hands over the tally and takes the fee. Returns what was paid.</summary>
+    public int ClaimBounty()
+    {
+        var total = PendingBountyTotal;
+        UnclaimedKills.Clear();
+        if (total > 0)
+            EarnGold(total);
+        return total;
     }
 
     [JsonIgnore]

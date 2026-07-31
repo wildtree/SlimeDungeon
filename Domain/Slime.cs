@@ -16,6 +16,32 @@ public sealed class Slime
     public bool IsPoison => Color == SlimeColor.Poison;
 
     /// <summary>
+    /// White slimes are a different proposition from every other colour: steel simply slides off them, so they
+    /// can only be brought down with magic. They would rather not fight at all.
+    /// </summary>
+    public bool IsWhite => Color == SlimeColor.White;
+
+    /// <summary>Set when a slime has escaped the battle. It is neither a threat nor a source of EXP after that.</summary>
+    public bool HasFled { get; set; }
+
+    /// <summary>Still in the fight: not dead and not run away.</summary>
+    public bool IsEngaged => !Stats.IsDead && !HasFled;
+
+    /// <summary>
+    /// The rank a white slime is built to, one above its own — but never past the top of the ladder, or an SS
+    /// white would end up with defence scaled beyond anything that could be brought against its (capped) HP,
+    /// and nothing in the game could kill it without a lucky critical.
+    /// </summary>
+    public Rank ToughenedRank => (Rank)Math.Min((int)Rank.SS, (int)Rank + 1);
+
+    /// <summary>
+    /// Damage subtracted from every hit. Ordinary slimes have none — their rank alone decides what can kill
+    /// them. A white slime carries the defence of the rank above, which together with its HP is what makes it
+    /// need magic a rank better than its own.
+    /// </summary>
+    public int Def => IsWhite ? Math.Max(1, (int)Math.Round(CombatMath.RankPower((int)ToughenedRank))) : 0;
+
+    /// <summary>
     /// Per-rank stat multiplier. Doubling every rank (the original curve) made a rank+1 dungeon lethal at the
     /// bottom of the ladder while producing absurd numbers at the top, so growth is 1.6x per rank instead:
     /// gentle enough that your own rank is always comfortable and rank+1 is a stretch rather than a death
@@ -28,7 +54,9 @@ public sealed class Slime
         var mult = RankMultiplier(rank);
         int Scale(double baseValue) => Math.Max(1, (int)Math.Round(baseValue * mult));
 
-        var hp = Scale(6);
+        // HP comes from CombatMath so that there is exactly one definition of "how tough is a rank-R slime",
+        // which is what every attack in the game is calibrated against.
+        var hp = CombatMath.SlimeHp(rank);
         var mp = Scale(4);
         return new Stats
         {
@@ -129,34 +157,35 @@ public sealed class Slime
         var element = ElementForColor(color);
         var stats = BaselineForRank(rank);
 
-        if (dungeonElement is { } de && de != Element.None)
+        // A white slime is built like the rank above it — that, and its defence, is what puts it out of reach
+        // of magic of its own rank.
+        if (color == SlimeColor.White)
         {
-            if (element == de)
-                ScaleStats(stats, 1.2);
-            else if (ElementExtensions.WeakElementIn(de) == element)
-                ScaleStats(stats, 0.8);
+            stats.MaxHp = CombatMath.SlimeHp((Rank)Math.Min((int)Rank.SS, (int)rank + 1));
+            stats.Hp = stats.MaxHp;
         }
 
+        // A dungeon's element used to scale a slime's whole stat block by 1.2 or 0.8. That cannot apply to HP
+        // any more — HP is the yardstick every attack is calibrated against, and a slime weakened below its
+        // rank could be finished by a spell a rank too low, which would break the ladder. Applying it to
+        // damage alone was worse than removing it: an elemental slime would die exactly as fast as before
+        // while hitting 20% harder, which is a straight difficulty increase nobody asked for. So the elemental
+        // character of a dungeon now lives entirely where the design puts it — in the matchup that moves an
+        // attack up or down a rank — and a slime's own numbers come from its rank and nothing else.
         return new Slime { Color = color, Element = element, Rank = rank, Stats = stats, DisplayLabel = color.ToString() };
     }
 
-    private static void ScaleStats(Stats s, double factor)
-    {
-        s.MaxHp = Math.Max(1, (int)(s.MaxHp * factor));
-        s.Hp = s.MaxHp;
-        s.MaxMp = (int)(s.MaxMp * factor);
-        s.Mp = s.MaxMp;
-        s.Str = Math.Max(1, (int)(s.Str * factor));
-        s.Int = Math.Max(1, (int)(s.Int * factor));
-        s.Dex = Math.Max(1, (int)(s.Dex * factor));
-        s.Agl = Math.Max(1, (int)(s.Agl * factor));
-    }
+    /// <summary>What a white slime is worth relative to any other slime of its rank — it is far harder to
+    /// corner, and killing one at all means you brought the right magic.</summary>
+    public const int WhiteExpMultiplier = 5;
 
     public int ExpValue(Element? dungeonElement)
     {
         var baseExp = (int)Rank * (int)Rank;
         if (dungeonElement is { } de && Element == de && de != Element.None)
             baseExp = (int)Math.Floor(baseExp * 1.1);
+        if (IsWhite)
+            baseExp *= WhiteExpMultiplier;
         return baseExp;
     }
 }

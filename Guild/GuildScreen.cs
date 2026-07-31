@@ -42,6 +42,9 @@ public sealed class GuildScreen : IScreen
     private static string[] BuildMenuLabels(Player player) =>
     [
         "クエスト",
+        // The pending total is on the label itself: gold from slimes is only collected here now, so leaving it
+        // unclaimed has to be visible from the hub rather than something you have to go and look for.
+        player.PendingBountyTotal > 0 ? $"討伐報酬 ({player.PendingBountyTotal}G)" : "討伐報酬",
         "ショップ",
         "ポーション調合",
         "ダンジョンへ",
@@ -72,12 +75,13 @@ public sealed class GuildScreen : IScreen
         switch (_cursor)
         {
             case 0: ctx.Screens.ChangeTo(new QuestBoardScreen()); break;
-            case 1: ctx.Screens.ChangeTo(new ShopScreen()); break;
-            case 2: ctx.Screens.ChangeTo(new PotionCraftScreen()); break;
-            case 3: ctx.Screens.ChangeTo(new DungeonSelectScreen()); break;
-            case 4: HandleHeal(player); break;
-            case 5: ctx.Screens.ChangeTo(new TitleSelectScreen()); break;
-            case 6: ctx.ShowKillLog = true; break;
+            case 1: ctx.Screens.ChangeTo(new BountyScreen()); break;
+            case 2: ctx.Screens.ChangeTo(new ShopScreen()); break;
+            case 3: ctx.Screens.ChangeTo(new PotionCraftScreen()); break;
+            case 4: ctx.Screens.ChangeTo(new DungeonSelectScreen()); break;
+            case 5: HandleHeal(player); break;
+            case 6: ctx.Screens.ChangeTo(new TitleSelectScreen()); break;
+            case 7: ctx.ShowKillLog = true; break;
         }
     }
 

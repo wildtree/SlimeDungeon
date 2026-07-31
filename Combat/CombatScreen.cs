@@ -8,7 +8,7 @@ namespace SlimeDungeon.Combat;
 
 public sealed class CombatScreen : IScreen
 {
-    private enum Phase { Menu, TargetSelect, SpellSelect, ItemSelect, RoundResolved, BattleEnd, LevelUpSummary }
+    private enum Phase { Menu, TargetSelect, SpellSelect, ItemSelect, RoundResolved, BattleEnd, BattleSummary, LevelUpSummary }
     private enum MenuCommand { Attack, Magic, Item, Flee }
 
     private readonly IScreen _dungeonScreen;
@@ -120,7 +120,16 @@ public sealed class CombatScreen : IScreen
                 {
                     if (_battle.Player.Stats.IsDead)
                         ctx.Screens.ChangeTo(new Guild.GameOverScreen());
-                    else if (_battle.LevelUp is not null)
+                    else if (!_battle.PlayerFled)
+                        _phase = Phase.BattleSummary;
+                    else
+                        ctx.Screens.ChangeTo(_dungeonScreen);
+                }
+                break;
+            case Phase.BattleSummary:
+                if (input.WasPressed(SDL.Keycode.Return) || input.WasPressed(SDL.Keycode.Space))
+                {
+                    if (_battle.LevelUp is not null)
                         _phase = Phase.LevelUpSummary;
                     else
                         ctx.Screens.ChangeTo(_dungeonScreen);
@@ -258,7 +267,8 @@ public sealed class CombatScreen : IScreen
             {
                 if (_battle.BattleOver)
                     break;
-                if (enemy.Stats.IsDead)
+                // Skip anything that died — or slipped away — since the round's initiative order was fixed.
+                if (!enemy.IsEngaged)
                     continue;
                 _battle.EnemyTurn(enemy);
             }
@@ -277,7 +287,9 @@ public sealed class CombatScreen : IScreen
         if (quest is null || quest.Type != QuestType.DefeatSlime)
             return;
 
-        foreach (var e in Enemies.Where(e => e.Color == quest.TargetSlimeColor))
+        // Only what actually fell counts. A slime that ran away is not a slime you defeated, and now that
+        // white ones flee on purpose the difference is a real one.
+        foreach (var e in _battle.Defeated.Where(e => e.Color == quest.TargetSlimeColor))
             quest.Progress++;
     }
 
@@ -319,8 +331,10 @@ public sealed class CombatScreen : IScreen
 
         StatusPanel.Draw(ctx, areaW, 0, 400);
 
-        // Modal, so it goes on top of the status panel too.
-        if (_phase == Phase.LevelUpSummary && _battle.LevelUp is { } levelUp)
+        // Modal, so they go on top of the status panel too. The tally comes first, then the celebration.
+        if (_phase == Phase.BattleSummary)
+            BattleSummaryPopup.Draw(ctx, _battle.Defeated, _battle.Escaped, _battle.ExpReward);
+        else if (_phase == Phase.LevelUpSummary && _battle.LevelUp is { } levelUp)
             LevelUpPopup.Draw(ctx, levelUp);
     }
 
