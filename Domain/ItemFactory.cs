@@ -6,8 +6,11 @@ namespace SlimeDungeon.Domain;
 public static class ItemFactory
 {
     public static Item WoodWand() => new() { Name = "木の杖", Category = ItemCategory.Weapon, WeaponKind = WeaponKind.Wand, StatBonus = 2, Value = 20 };
-    public static Item LeatherHat() => new() { Name = "革の帽子", Category = ItemCategory.Helmet, Def = 1, Value = 15 };
-    public static Item LeatherArmor() => new() { Name = "革の鎧", Category = ItemCategory.Armor, Def = 2, Value = 25 };
+    // Starting armour. DEF is subtracted flat, so at the bottom of the ladder a single point of it is the
+    // difference between a slime doing a third of your health and half of it — these numbers are load-bearing
+    // in a way the higher-rank gear is not.
+    public static Item LeatherHat() => new() { Name = "革の帽子", Category = ItemCategory.Helmet, Def = 2, Value = 15 };
+    public static Item LeatherArmor() => new() { Name = "革の鎧", Category = ItemCategory.Armor, Def = 3, Value = 25 };
     public static Item WoodShoes() => new() { Name = "木の靴", Category = ItemCategory.Shoes, StatBonus = 1, Value = 15 };
     public static Item Bag() => new() { Name = "袋", Category = ItemCategory.Bag, BagCapacity = 3, Value = 10 };
 

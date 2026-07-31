@@ -344,12 +344,14 @@ public sealed class DungeonScreen : IScreen
 
         if (chest.IsMimic)
         {
+            // No lid sound for a mimic — the encounter sting is the whole point of the surprise.
             _session.ShowMessage("宝箱の中からスライムが飛び出した！");
             var mimic = Slime.Create(SlimeColor.Gold, _session.Map.DungeonRank, _session.Map.DungeonElement);
             StartFixedEncounter(ctx, new List<Slime> { mimic });
             return;
         }
 
+        ctx.Audio.Play(SoundId.ChestOpen);
         player.Counters.ChestsOpened++;
 
         // The bag-has-room check happens before OpenChest is ever called (see BeginMove), so every

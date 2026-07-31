@@ -5,6 +5,8 @@ public enum SoundId
     WeaponHit,
     MagicAttack,
     MagicHeal,
+    ChestOpen,
+    Encounter,
     LevelUpFanfare,
     RankUpFanfare,
     TitleFanfare,
@@ -30,6 +32,8 @@ public static class SoundBank
         [SoundId.WeaponHit] = WeaponHit(),
         [SoundId.MagicAttack] = MagicAttack(),
         [SoundId.MagicHeal] = MagicHeal(),
+        [SoundId.ChestOpen] = ChestOpen(),
+        [SoundId.Encounter] = Encounter(),
         [SoundId.LevelUpFanfare] = LevelUpFanfare(),
         [SoundId.RankUpFanfare] = RankUpFanfare(),
         [SoundId.TitleFanfare] = TitleFanfare(),
@@ -74,6 +78,61 @@ public static class SoundBank
         AddNote(buf, 0.18, 0.68, Midi(79), Wave.Bell, 0.27);   // G5
         AddNote(buf, 0.30, 0.55, Midi(84), Wave.Bell, 0.18);   // C6 sparkle
         return Finish(buf, peak: 0.5);
+    }
+
+    /// <summary>
+    /// A chest coming open: the lid first — a dry rasp over a hinge groaning upward in pitch — and then, once
+    /// it is open, the little rise of bright notes that says there was something inside worth having.
+    /// </summary>
+    private static short[] ChestOpen()
+    {
+        var buf = NewBuffer(1.05);
+
+        // Lid and hinge. The upward sweep is what makes it read as opening rather than closing.
+        AddNoise(buf, 0.00, 0.30, amp: 0.30, decay: 9);
+        AddSweep(buf, 0.00, 0.30, fromHz: 105, toHz: 250, Wave.Saw, amp: 0.22, decay: 5);
+        AddSweep(buf, 0.02, 0.26, fromHz: 380, toHz: 620, Wave.Triangle, amp: 0.10, decay: 7);
+
+        // A soft knock as it reaches the end of its travel.
+        AddNoise(buf, 0.30, 0.07, amp: 0.22, decay: 42);
+        AddSweep(buf, 0.30, 0.09, fromHz: 190, toHz: 95, Wave.Sine, amp: 0.24, decay: 26);
+
+        // And the contents.
+        AddNote(buf, 0.36, 0.50, Midi(79), Wave.Bell, 0.26);   // G5
+        AddNote(buf, 0.45, 0.48, Midi(84), Wave.Bell, 0.26);   // C6
+        AddNote(buf, 0.54, 0.46, Midi(88), Wave.Bell, 0.22);   // E6
+        return Finish(buf, peak: 0.52);
+    }
+
+    /// <summary>
+    /// Slimes ahead. Not a fanfare — an alarm: three hammered notes to make you look up, a minor climb that
+    /// will not settle, and a held note left hanging so the battle screen arrives before the phrase resolves.
+    /// The one sound in the game deliberately written not to feel finished.
+    /// </summary>
+    private static short[] Encounter()
+    {
+        Note[] lead =
+        [
+            new(0.00, 0.11, 62), new(0.13, 0.11, 62), new(0.26, 0.11, 62),
+            new(0.40, 0.20, 65), new(0.60, 0.20, 69),
+            new(0.80, 0.14, 70), new(0.94, 0.14, 69), new(1.08, 0.32, 74),
+            new(1.42, 0.13, 73), new(1.55, 0.13, 74), new(1.68, 0.13, 76), new(1.81, 0.15, 77),
+            new(1.98, 0.80, 81),
+        ];
+        Note[] harmony =
+        [
+            new(0.40, 0.20, 62, 0.5), new(0.60, 0.20, 65, 0.5), new(1.08, 0.32, 69, 0.5),
+            // A tritone under the last note: the interval that refuses to resolve.
+            new(1.98, 0.80, 75, 0.45), new(1.98, 0.80, 69, 0.4),
+        ];
+        Note[] bass =
+        [
+            new(0.00, 0.11, 38), new(0.13, 0.11, 38), new(0.26, 0.11, 38),
+            new(0.40, 0.18, 38), new(0.60, 0.18, 41), new(0.80, 0.18, 38), new(1.00, 0.18, 41),
+            new(1.20, 0.18, 38), new(1.40, 0.18, 41), new(1.60, 0.18, 38), new(1.80, 0.16, 43),
+            new(1.98, 0.80, 38),
+        ];
+        return Render(2.90, lead, harmony, bass);
     }
 
     // ---- Fanfares ----------------------------------------------------------------------------

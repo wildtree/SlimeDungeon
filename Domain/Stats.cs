@@ -35,10 +35,11 @@ public sealed class Stats
     {
         int Roll(double baseValue) => Math.Max(1, (int)Math.Floor(RandomUtil.Shared.NextGaussian(baseValue, 1.5)));
 
-        // A little more starting HP than the other stats: a pair of slimes gets about three swings in before
-        // a level 1 character can finish them, and at ~10 max HP that was very nearly lethal every time.
-        // This leaves a pair genuinely threatening while making it survivable if you play it carefully.
-        var hp = Roll(14);
+        // A little more starting HP than the other stats. At 14 an above-rank slime — which an H dungeon turns
+        // up about one time in six — took exactly half the bar per blow and killed in two, which is not a
+        // mistake the player can see coming or answer. This leaves a pair genuinely threatening while giving
+        // a careful beginner room to reach for a herb.
+        var hp = Roll(15);
         var mp = Roll(10);
         return new Stats
         {

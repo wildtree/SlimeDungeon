@@ -37,6 +37,7 @@ public sealed class CombatScreen : IScreen
     {
         AssignDisplayLabels(Enemies);
         _audio = ctx.Audio;
+        _audio.Play(SoundId.Encounter);
         _battle = new CombatEncounter { Player = ctx.Player!, Enemies = Enemies, DungeonElement = DungeonElement, DungeonRank = DungeonRank };
         _battle.Log.Add($"{string.Join("・", Enemies.Select(e => e.DisplayLabel))}のスライムが現れた！");
         BeginRound();
