@@ -105,9 +105,18 @@ public sealed class QuestBoardScreen : IScreen
     {
         // Collected items were already taken out of the bag as they were handed in, so there is nothing left
         // to deduct here — only the rewards to pay out.
-        player.Gold += quest.RewardGold;
+        player.EarnGold(quest.RewardGold);
         _rankUp = player.AddRankPoints(quest.RankPointsFor(player.Rank));
         var levelUp = player.AddExp(quest.RewardExp);
+
+        player.Counters.QuestsCompleted++;
+        switch (quest.Type)
+        {
+            case QuestType.CollectHerb: player.Counters.HerbQuestsCompleted++; break;
+            case QuestType.CollectAntidote: player.Counters.AntidoteQuestsCompleted++; break;
+            case QuestType.DefeatSlime: player.Counters.SlayQuestsCompleted++; break;
+        }
+
         player.ActiveQuest = null;
         return levelUp;
     }

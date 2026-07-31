@@ -311,6 +311,7 @@ public sealed class DungeonScreen : IScreen
         }
 
         player.Stats.Mp -= cost;
+        player.Counters.SpellsCast++;
         var amount = SpellDefinitions.HealAmount(spell.Rank, player.Stats.MaxHp);
         player.Stats.Hp = Math.Min(player.Stats.MaxHp, player.Stats.Hp + amount);
         _session.ShowMessage($"{SpellDefinitions.NameOf(spell.Id)}！ HPが{amount}回復した");
@@ -349,12 +350,14 @@ public sealed class DungeonScreen : IScreen
             return;
         }
 
+        player.Counters.ChestsOpened++;
+
         // The bag-has-room check happens before OpenChest is ever called (see BeginMove), so every
         // item here is guaranteed to fit.
         var parts = new List<string>();
         if (chest.Gold > 0)
         {
-            player.Gold += chest.Gold;
+            player.EarnGold(chest.Gold);
             parts.Add($"{chest.Gold}G");
         }
 

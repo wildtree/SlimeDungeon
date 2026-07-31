@@ -161,7 +161,7 @@ public sealed class CombatScreen : IScreen
             case MenuCommand.Item:
                 if (UsableItems(ctx).Count == 0)
                 {
-                    _roundLog.Add("使えるアイテムがない");
+                    _roundLog.Add("アイテム欄に何も装備していない");
                     return;
                 }
                 _phase = Phase.ItemSelect;
@@ -214,7 +214,8 @@ public sealed class CombatScreen : IScreen
     private void UpdateItemSelect(GameContext ctx, InputManager input)
     {
         var items = UsableItems(ctx);
-        if (input.WasPressed(SDL.Keycode.Escape)) { _phase = Phase.Menu; _cursor = 0; return; }
+        if (input.WasPressed(SDL.Keycode.Escape) || items.Count == 0) { _phase = Phase.Menu; _cursor = 0; return; }
+        if (_cursor >= items.Count) _cursor = items.Count - 1;
         if (input.WasPressed(SDL.Keycode.Down)) _cursor = (_cursor + 1) % items.Count;
         if (input.WasPressed(SDL.Keycode.Up)) _cursor = (_cursor - 1 + items.Count) % items.Count;
 
@@ -235,8 +236,11 @@ public sealed class CombatScreen : IScreen
         return $"{SpellDefinitions.NameOf(s.Id)}{scope} (MP{SpellDefinitions.MpCost(s.Rank)})";
     }
 
-    private static List<Item> UsableItems(GameContext ctx) =>
-        ctx.Player!.Bag.Where(i => i.Category is ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote).ToList();
+    /// <summary>
+    /// Only what is readied in the two item slots. Digging through the pack mid-fight is not an option —
+    /// that is precisely what buys the readied items their place outside the bag's capacity.
+    /// </summary>
+    private static List<Item> UsableItems(GameContext ctx) => ctx.Player!.ReadiedItems.ToList();
 
     /// <summary>Resolves the player's chosen action, then whichever alive enemies were slower than the
     /// player this round (computed back in <see cref="BeginRound"/>), skipping any that already died.</summary>

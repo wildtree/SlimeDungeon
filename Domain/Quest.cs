@@ -54,13 +54,23 @@ public sealed class Quest
 
     public bool IsComplete => Progress >= TargetCount;
 
-    /// <summary>Items currently in the bag that count toward this quest.</summary>
-    public int DeliverableInBag(Player player) => Type switch
+    /// <summary>The item category this quest accepts, or null if it is not a collection job.</summary>
+    private ItemCategory? DeliveryCategory => Type switch
     {
-        QuestType.CollectHerb => player.Bag.Count(i => i.Category == ItemCategory.Herb && i.Rank == TargetItemRank),
-        QuestType.CollectAntidote => player.Bag.Count(i => i.Category == ItemCategory.Antidote && i.Rank == TargetItemRank),
-        _ => 0,
+        QuestType.CollectHerb => ItemCategory.Herb,
+        QuestType.CollectAntidote => ItemCategory.Antidote,
+        _ => null,
     };
+
+    /// <summary>
+    /// Items the player is carrying that count toward this quest. Readied item slots count as well as the bag —
+    /// a herb the player put in an item slot is still a herb, and not counting it would look like the delivery
+    /// had gone missing.
+    /// </summary>
+    public int DeliverableInBag(Player player) =>
+        DeliveryCategory is { } category
+            ? player.CarriedItems.Count(i => i.Category == category && i.Rank == TargetItemRank)
+            : 0;
 
     /// <summary>
     /// Hands over as much as the player is carrying, up to what is still owed, and banks it against
@@ -74,21 +84,22 @@ public sealed class Quest
             return 0;
 
         var wanted = Math.Min(Remaining, DeliverableInBag(player));
-        if (wanted <= 0)
+        if (wanted <= 0 || DeliveryCategory is not { } category)
             return 0;
 
-        var category = Type == QuestType.CollectHerb ? ItemCategory.Herb : ItemCategory.Antidote;
-        var taken = 0;
-        for (var i = player.Bag.Count - 1; i >= 0 && taken < wanted; i--)
-        {
-            if (player.Bag[i].Category != category || player.Bag[i].Rank != TargetItemRank)
-                continue;
-            player.Bag.RemoveAt(i);
-            taken++;
-        }
+        // Hand over what is loose in the bag first, so a readied item is only broken out of its slot when the
+        // contract still needs it.
+        var handed = player.Bag
+            .Where(i => i.Category == category && i.Rank == TargetItemRank)
+            .Concat(player.ReadiedItems.Where(i => i.Category == category && i.Rank == TargetItemRank))
+            .Take(wanted)
+            .ToList();
 
-        Progress += taken;
-        return taken;
+        foreach (var item in handed)
+            player.ConsumeOne(item);
+
+        Progress += handed.Count;
+        return handed.Count;
     }
 
     /// <summary>

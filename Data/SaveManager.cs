@@ -106,6 +106,9 @@ public static class SaveManager
                     EquipmentNames.MigrateStaleName(item);
                 foreach (var item in player.Bag)
                     EquipmentNames.MigrateStaleName(item);
+                // The bag is worn but lives outside the Equipment dictionary, so it needs its own pass.
+                if (player.EquippedBag is { } worn)
+                    EquipmentNames.MigrateStaleName(worn);
                 MigrateExpToCumulative(player);
                 MigrateDayCountToCalendar(player);
             }

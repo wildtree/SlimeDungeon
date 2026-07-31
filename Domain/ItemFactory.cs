@@ -47,7 +47,7 @@ public static class ItemFactory
     /// <summary>Bags only drop in dungeons (never sold) — capacity scales gently with rank so a lucky
     /// early find doesn't trivialize the bag-space economy.</summary>
     public static Item CreateBag(Rank rank) =>
-        new() { Name = $"{rank.Label()}ランクの鞄", Category = ItemCategory.Bag, Rank = rank, BagCapacity = 2 + (int)rank, Value = (int)rank * 8 };
+        new() { Name = EquipmentNames.Bag(rank), Category = ItemCategory.Bag, Rank = rank, BagCapacity = 2 + (int)rank, Value = (int)rank * 8 };
 
     public static Item CreateHerb(Rank rank) =>
         new() { Name = $"薬草({rank.Label()})", Category = ItemCategory.Herb, Rank = rank, Value = (int)rank * 5 };

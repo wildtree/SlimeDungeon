@@ -33,23 +33,36 @@ public static class StatusPanel
         fonts.DrawText(r.Handle, $"DEF {player.TotalDef,3}", cx, cy, 10, Colors.White);
         cy += 18;
         fonts.DrawText(r.Handle, $"所持金 {player.Gold} G", cx, cy, 11, Colors.Gold);
-        cy += 22;
+        cy += 20;
 
+        // Eight rows where there were six, so the rows and the spacing below them are tighter and the date is
+        // one line instead of two — otherwise the block runs into the key hints along the bottom.
         fonts.DrawText(r.Handle, "装備", cx, cy, 10, Colors.Highlight);
-        cy += 14;
-        foreach (var slot in new[] { EquipSlot.RightHand, EquipSlot.LeftHand, EquipSlot.Arm, EquipSlot.Body, EquipSlot.Head, EquipSlot.Feet })
+        cy += 13;
+        foreach (var slot in new[]
+                 {
+                     EquipSlot.RightHand, EquipSlot.LeftHand, EquipSlot.Arm, EquipSlot.Body,
+                     EquipSlot.Head, EquipSlot.Feet, EquipSlot.Item1, EquipSlot.Item2,
+                 })
         {
             var name = player.Equipment.TryGetValue(slot, out var item) ? item.Name : "-";
-            fonts.DrawText(r.Handle, $"{SlotLabel(slot)}: {name}", cx, cy, 9, Colors.White);
-            cy += 12;
+            // The item slots are what the player can actually reach in a fight, so they are picked out rather
+            // than reading as two more lines of gear.
+            var color = IsItemSlot(slot)
+                ? player.Equipment.ContainsKey(slot) ? Colors.Highlight : Colors.Border
+                : Colors.White;
+            fonts.DrawText(r.Handle, $"{SlotLabel(slot)}: {name}", cx, cy, 9, color);
+            cy += 11;
         }
 
-        cy += 6;
-        fonts.DrawText(r.Handle, $"鞄 {player.Bag.Count}/{player.BagCapacity}", cx, cy, 10, Colors.Highlight);
-        cy += 16;
+        // The bag is worn like everything else, so it reads as the last equipment row rather than a separate
+        // line — which also keeps its contents count without spending another row on it.
+        var bagName = player.EquippedBag?.Name ?? "-";
+        fonts.DrawText(r.Handle, $"鞄: {bagName} ({player.Bag.Count}/{player.BagCapacity})", cx, cy, 9, Colors.Highlight);
+        cy += 15;
         var today = GameCalendar.FromDayNumber(player.DayCount);
-        fonts.DrawText(r.Handle, $"新暦{GameCalendar.YearLabel(today.Year)}", cx, cy, 9, Colors.White);
-        fonts.DrawText(r.Handle, $"{today.MonthName}{today.Day}日", cx, cy + 11, 10, Colors.Highlight);
+        fonts.DrawText(r.Handle, $"新暦{GameCalendar.YearLabel(today.Year)} {today.MonthName}{today.Day}日",
+            cx, cy, 9, Colors.White);
 
         fonts.DrawText(r.Handle, "[I]持ち物 [S]討伐記録", x + pad, y + h - 18, 9, Colors.Border);
     }
@@ -103,10 +116,16 @@ public static class StatusPanel
         var sprite = ctx.Sprites.PlayerSprite(player.Gender, Direction.Down, WalkFrame.A);
         r.DrawTexture(sprite, px + 1, py + 1, portrait - 2, portrait - 2);
 
-        // Name and gender.
+        // Name with the gender alongside it, freeing the line below for the title the holder is bearing —
+        // which is where a licence would carry its holder's standing.
         var textX = px + portrait + 8;
         fonts.DrawText(r.Handle, player.Name, textX, py, 14, ink);
-        fonts.DrawText(r.Handle, $"（{GenderLabel(player.Gender)}）", textX, py + 18, 9, inkSoft);
+        var (nameW, _) = fonts.Measure(player.Name, 14);
+        fonts.DrawText(r.Handle, $"（{GenderLabel(player.Gender)}）", textX + nameW + 3, py + 5, 9, inkSoft);
+
+        var titleText = player.DisplayedTitle is { } shown ? Titles.NameOf(shown) : "称号なし";
+        var titleColor = player.DisplayedTitle is null ? inkSoft : Colors.Rgb(132, 58, 40);
+        fonts.DrawText(r.Handle, titleText, textX, py + 17, 10, titleColor);
 
         // Rank seal with the rank letter stamped on it, and the level beside it.
         const float seal = 26f;
@@ -177,8 +196,12 @@ public static class StatusPanel
         EquipSlot.Body => "胴",
         EquipSlot.Head => "頭",
         EquipSlot.Feet => "足",
+        EquipSlot.Item1 => "アイテム1",
+        EquipSlot.Item2 => "アイテム2",
         _ => slot.ToString(),
     };
+
+    private static bool IsItemSlot(EquipSlot slot) => slot is EquipSlot.Item1 or EquipSlot.Item2;
 
     private static void DrawBar(GameContext ctx, float x, float y, string label, int current, int max, SDL3.SDL.Color color)
     {

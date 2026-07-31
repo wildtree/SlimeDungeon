@@ -5,7 +5,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Deliberately no RuntimeIdentifier: pinning win-x64 would stop the project building anywhere else, and
+         the native SDL packages ship every platform's binaries under runtimes/, which the host picks from at
+         load time. Publishing for a specific target is still `dotnet publish -r linux-x64` on the command line. -->
     <SelfContained>false</SelfContained>
     <InvariantGlobalization>false</InvariantGlobalization>
     <ApplicationIcon>appicon.ico</ApplicationIcon>
@@ -14,9 +16,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The .Native packages carry win/linux/osx (x64 and arm64) in one reference each, instead of the
+         per-OS .Windows/.Linux/.macOS split which would need three references picked by RID. Note the native
+         SDL3 they bundle is 3.4.2, a little behind the 3.4.12 managed bindings; the API this game uses is
+         well inside what 3.4.2 exports, and building against the older native library on Windows is the same
+         thing Linux would load. -->
     <PackageReference Include="SDL3-CS" Version="3.4.12.3" />
-    <PackageReference Include="SDL3-CS.Windows" Version="3.4.12.1" />
-    <PackageReference Include="SDL3-CS.Windows.TTF" Version="3.2.2.7" />
+    <PackageReference Include="SDL3-CS.Native" Version="3.4.2" />
+    <PackageReference Include="SDL3-CS.Native.TTF" Version="3.3.0" />
   </ItemGroup>
 
 </Project>

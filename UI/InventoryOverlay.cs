@@ -8,23 +8,38 @@ namespace SlimeDungeon.UI;
 /// <summary>The 'i' overlay: equipment + bag, usable from the guild or the dungeon alike.</summary>
 public sealed class InventoryOverlay
 {
-    private enum Phase { List, ItemActionMenu, HandSelect, ForgetSpellSelect }
-    private enum ItemAction { Use, Equip, Discard }
+    private enum Phase { List, ItemActionMenu, SlotSelect, ForgetSpellSelect }
+    private enum ItemAction { Use, Equip, Unequip, Discard }
 
     private Phase _phase = Phase.List;
     private int _cursor;
     private int _actionCursor;
-    private int _handCursor;
+    private int _slotChoiceCursor;
     private string? _message;
     private Item? _pendingScroll;
-    private Item? _selectedBagItem;
-    private Item? _pendingHandItem;
+    private Item? _selectedItem;
+
+    /// <summary>Which equipment slot <see cref="_selectedItem"/> came out of, or null if it came from the bag.</summary>
+    private EquipSlot? _selectedItemSlot;
+
+    private Item? _pendingSlotItem;
+    private EquipSlot[] _slotChoices = Array.Empty<EquipSlot>();
     private List<ItemAction> _availableActions = new();
 
-    /// <summary>The two hands, in the order the hand-choice menu lists them.</summary>
+    /// <summary>The two hands, in the order the slot-choice menu lists them.</summary>
     private static readonly EquipSlot[] Hands = { EquipSlot.RightHand, EquipSlot.LeftHand };
 
-    private static readonly EquipSlot[] Slots = { EquipSlot.RightHand, EquipSlot.LeftHand, EquipSlot.Arm, EquipSlot.Body, EquipSlot.Head, EquipSlot.Feet };
+    /// <summary>
+    /// Every slot, laid out in two columns of four: gear down the left, the rest plus the two item slots down
+    /// the right. The cursor runs column-major, so it reads in the same order the eye does.
+    /// </summary>
+    private static readonly EquipSlot[] Slots =
+    {
+        EquipSlot.RightHand, EquipSlot.LeftHand, EquipSlot.Arm, EquipSlot.Body,
+        EquipSlot.Head, EquipSlot.Feet, EquipSlot.Item1, EquipSlot.Item2,
+    };
+
+    private const int SlotRows = 4;
 
     public void Update(GameContext ctx, float dt)
     {
@@ -39,8 +54,8 @@ public sealed class InventoryOverlay
             case Phase.ItemActionMenu:
                 UpdateItemActionMenu(input, player);
                 return;
-            case Phase.HandSelect:
-                UpdateHandSelect(input, player);
+            case Phase.SlotSelect:
+                UpdateSlotSelect(input, player);
                 return;
         }
 
@@ -59,34 +74,51 @@ public sealed class InventoryOverlay
         if (_cursor < Slots.Length)
         {
             var slot = Slots[_cursor];
-            if (player.Equipment.TryGetValue(slot, out var equipped))
+            if (!player.Equipment.TryGetValue(slot, out var equipped))
+                return;
+
+            // A readied consumable is still a consumable — outside a fight it can be drunk straight out of its
+            // slot, so it gets the same action menu a bag item does rather than only ever being taken off.
+            if (IsItemSlot(slot))
             {
-                if (!player.BagHasRoom)
-                {
-                    _message = "鞄がいっぱいだ";
-                    return;
-                }
-                player.Equipment.Remove(slot);
-                player.Bag.Add(equipped);
-                _message = $"{equipped.Name}を外した";
+                Select(player, equipped, slot);
+                return;
             }
+
+            if (!player.BagHasRoom)
+            {
+                _message = "鞄がいっぱいだ";
+                return;
+            }
+            player.Equipment.Remove(slot);
+            player.Bag.Add(equipped);
+            _message = $"{equipped.Name}を外した";
             return;
         }
 
-        var item = player.Bag[_cursor - Slots.Length];
-        _selectedBagItem = item;
-        _availableActions = BuildActions(item);
+        Select(player, player.Bag[_cursor - Slots.Length], null);
+    }
+
+    private void Select(Player player, Item item, EquipSlot? fromSlot)
+    {
+        _selectedItem = item;
+        _selectedItemSlot = fromSlot;
+        _availableActions = BuildActions(item, fromSlot);
         _actionCursor = 0;
         _phase = Phase.ItemActionMenu;
     }
 
-    private static List<ItemAction> BuildActions(Item item)
+    private static bool IsItemSlot(EquipSlot slot) => slot is EquipSlot.Item1 or EquipSlot.Item2;
+
+    private static List<ItemAction> BuildActions(Item item, EquipSlot? fromSlot)
     {
         var actions = new List<ItemAction>();
         if (IsUsableFromInventory(item))
             actions.Add(ItemAction.Use);
-        if (item.IsEquippable)
+        if (fromSlot is null && item.HasEquipSlot)
             actions.Add(ItemAction.Equip);
+        if (fromSlot is not null)
+            actions.Add(ItemAction.Unequip);
         actions.Add(ItemAction.Discard);
         return actions;
     }
@@ -98,6 +130,7 @@ public sealed class InventoryOverlay
     {
         ItemAction.Use => "使う",
         ItemAction.Equip => "装備する",
+        ItemAction.Unequip => "外す",
         ItemAction.Discard => "捨てる",
         _ => action.ToString(),
     };
@@ -107,16 +140,17 @@ public sealed class InventoryOverlay
         if (input.WasPressed(SDL.Keycode.Escape))
         {
             _phase = Phase.List;
-            _selectedBagItem = null;
+            _selectedItem = null;
+            _selectedItemSlot = null;
             return;
         }
 
         _actionCursor = MenuNav.Move(input, _actionCursor, _availableActions.Count);
 
-        if (!MenuNav.Confirmed(input) || _selectedBagItem is null)
+        if (!MenuNav.Confirmed(input) || _selectedItem is null)
             return;
 
-        var item = _selectedBagItem;
+        var item = _selectedItem;
         switch (_availableActions[_actionCursor])
         {
             case ItemAction.Use:
@@ -125,16 +159,21 @@ public sealed class InventoryOverlay
             case ItemAction.Equip:
                 EquipItem(player, item);
                 break;
+            case ItemAction.Unequip:
+                UnequipItem(player, item);
+                break;
             case ItemAction.Discard:
                 DiscardItem(player, item);
                 break;
         }
 
-        // UseConsumable may switch to ForgetSpellSelect (scroll while 4 spells known); don't stomp that.
+        // UseConsumable may switch to ForgetSpellSelect (scroll while 4 spells known), and EquipItem may switch
+        // to SlotSelect (nowhere free to put it); don't stomp either.
         if (_phase == Phase.ItemActionMenu)
         {
             _phase = Phase.List;
-            _selectedBagItem = null;
+            _selectedItem = null;
+            _selectedItemSlot = null;
         }
 
         var count = Slots.Length + player.Bag.Count;
@@ -150,7 +189,7 @@ public sealed class InventoryOverlay
             {
                 var amount = ConsumableEffects.HerbHealAmount(item.Rank, player.Stats.MaxHp);
                 player.Stats.Hp = Math.Min(player.Stats.MaxHp, player.Stats.Hp + amount);
-                RemoveOne(player.Bag, item);
+                player.ConsumeOne(item);
                 _message = $"{item.Name}を使った。HPが{amount}回復した";
                 break;
             }
@@ -161,7 +200,7 @@ public sealed class InventoryOverlay
                     item.Rank, isHp ? player.Stats.MaxHp : player.Stats.MaxMp);
                 if (isHp) player.Stats.Hp = Math.Min(player.Stats.MaxHp, player.Stats.Hp + amount);
                 else player.Stats.Mp = Math.Min(player.Stats.MaxMp, player.Stats.Mp + amount);
-                RemoveOne(player.Bag, item);
+                player.ConsumeOne(item);
                 _message = $"{item.Name}を使った。{(isHp ? "HP" : "MP")}が{amount}回復した";
                 break;
             }
@@ -182,7 +221,7 @@ public sealed class InventoryOverlay
                 else
                 {
                     player.LearnSpell(item.SpellTaught, item.Rank);
-                    RemoveOne(player.Bag, item);
+                    player.ConsumeOne(item);
                     _message = $"{SpellDefinitions.NameOf(item.SpellTaught)}を覚えた";
                 }
                 break;
@@ -204,9 +243,7 @@ public sealed class InventoryOverlay
                     break;
                 }
 
-                _pendingHandItem = item;
-                _handCursor = 0;
-                _phase = Phase.HandSelect;
+                BeginSlotSelect(item, Hands);
                 return;
             }
             case ItemCategory.Armor:
@@ -221,6 +258,20 @@ public sealed class InventoryOverlay
             case ItemCategory.Shoes:
                 TryEquip(player, item, EquipSlot.Feet);
                 break;
+            case ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote:
+            {
+                // Same rule as the hands: take a free slot without asking, but when both are occupied the
+                // player decides which readied item gets displaced back into the bag.
+                var freeSlot = Player.ItemSlots.FirstOrDefault(s => !player.Equipment.ContainsKey(s), EquipSlot.Item1);
+                if (Player.ItemSlots.Any(s => !player.Equipment.ContainsKey(s)))
+                {
+                    TryEquip(player, item, freeSlot);
+                    break;
+                }
+
+                BeginSlotSelect(item, Player.ItemSlots);
+                return;
+            }
             case ItemCategory.Bag:
             {
                 // Also slot-neutral, but swapping to a *smaller* bag could leave more items than the new bag
@@ -242,10 +293,33 @@ public sealed class InventoryOverlay
         }
     }
 
+    private void BeginSlotSelect(Item item, EquipSlot[] choices)
+    {
+        _pendingSlotItem = item;
+        _slotChoices = choices;
+        _slotChoiceCursor = 0;
+        _phase = Phase.SlotSelect;
+    }
+
+    /// <summary>Takes a readied consumable out of its slot and back into the bag, if the bag can take it.</summary>
+    private void UnequipItem(Player player, Item item)
+    {
+        if (_selectedItemSlot is not { } slot)
+            return;
+        if (!player.BagHasRoom)
+        {
+            _message = "鞄がいっぱいだ";
+            return;
+        }
+        player.Equipment.Remove(slot);
+        player.Bag.Add(item);
+        _message = $"{item.Name}を鞄にしまった";
+    }
+
     private void DiscardItem(Player player, Item item)
     {
         var name = item.Name;
-        RemoveOne(player.Bag, item);
+        player.ConsumeOne(item);
         _message = $"{name}を捨てた";
     }
 
@@ -286,32 +360,34 @@ public sealed class InventoryOverlay
         var forget = player.KnownSpells[_cursor];
         player.ForgetSpell(forget.Id);
         player.LearnSpell(_pendingScroll.SpellTaught, _pendingScroll.Rank);
-        RemoveOne(player.Bag, _pendingScroll);
+        player.ConsumeOne(_pendingScroll);
         _message = $"{SpellDefinitions.NameOf(forget.Id)}を忘れて{SpellDefinitions.NameOf(_pendingScroll.SpellTaught)}を覚えた";
         _pendingScroll = null;
         _phase = Phase.List;
         _cursor = 0;
     }
 
-    /// <summary>Both hands are full: the player picks which one gets replaced.</summary>
-    private void UpdateHandSelect(InputManager input, Player player)
+    /// <summary>Every candidate slot is occupied: the player picks which one gets displaced.</summary>
+    private void UpdateSlotSelect(InputManager input, Player player)
     {
         if (input.WasPressed(SDL.Keycode.Escape))
         {
             _phase = Phase.List;
-            _pendingHandItem = null;
-            _selectedBagItem = null;
+            _pendingSlotItem = null;
+            _selectedItem = null;
+            _selectedItemSlot = null;
             return;
         }
 
-        _handCursor = MenuNav.Move(input, _handCursor, Hands.Length);
+        _slotChoiceCursor = MenuNav.Move(input, _slotChoiceCursor, _slotChoices.Length);
 
-        if (!MenuNav.Confirmed(input) || _pendingHandItem is null)
+        if (!MenuNav.Confirmed(input) || _pendingSlotItem is null)
             return;
 
-        TryEquip(player, _pendingHandItem, Hands[_handCursor]);
-        _pendingHandItem = null;
-        _selectedBagItem = null;
+        TryEquip(player, _pendingSlotItem, _slotChoices[_slotChoiceCursor]);
+        _pendingSlotItem = null;
+        _selectedItem = null;
+        _selectedItemSlot = null;
         _phase = Phase.List;
 
         var count = Slots.Length + player.Bag.Count;
@@ -320,45 +396,52 @@ public sealed class InventoryOverlay
     }
 
     /// <summary>
-    /// The hand-choice menu. Each row names the hand, what it is holding, and how the swap would move the
-    /// relevant stat, so the decision can be made without leaving the menu.
+    /// The slot-choice menu, used whenever every slot an item could go in is already occupied — both hands for
+    /// weapons and shields, both item slots for consumables. Each row names the slot, what it is holding, and
+    /// how the swap would move the player's stats, so the decision can be made without leaving the menu.
     /// </summary>
-    private void DrawHandSelect(GameContext ctx, Player player, Item item)
+    private void DrawSlotSelect(GameContext ctx, Player player, Item item)
     {
         var r = ctx.Renderer;
         var fonts = ctx.Fonts;
+
+        var isHands = _slotChoices.Length > 0 && _slotChoices[0] == EquipSlot.RightHand;
 
         const float menuX = 290f;
         const float menuY = 200f;
         const float menuW = 274f;
         const float rowH = 32f;
-        var menuH = 46f + Hands.Length * rowH + 10f;
+        var menuH = 46f + _slotChoices.Length * rowH + 10f;
 
         r.FillRect(menuX, menuY, menuW, menuH, Colors.PanelBg);
         r.DrawRect(menuX, menuY, menuW, menuH, Colors.Border);
 
-        fonts.DrawText(r.Handle, $"{item.Name} をどちらの手に？", menuX + 10, menuY + 6, 11, Colors.Highlight);
-        fonts.DrawText(r.Handle, "両手がふさがっています", menuX + 10, menuY + 20, 9, Colors.Border);
+        var prompt = isHands ? $"{item.Name} をどちらの手に？" : $"{item.Name} をどちらの欄に？";
+        var note = isHands ? "両手がふさがっています" : "アイテム欄が両方ふさがっています";
+        fonts.DrawText(r.Handle, prompt, menuX + 10, menuY + 6, 11, Colors.Highlight);
+        fonts.DrawText(r.Handle, note, menuX + 10, menuY + 20, 9, Colors.Border);
 
         var y = menuY + 38f;
-        for (var i = 0; i < Hands.Length; i++)
+        for (var i = 0; i < _slotChoices.Length; i++)
         {
-            var hand = Hands[i];
-            var selected = i == _handCursor;
+            var slot = _slotChoices[i];
+            var selected = i == _slotChoiceCursor;
             if (selected)
                 r.FillRect(menuX + 6, y - 2, menuW - 12, rowH - 3, Colors.Highlight);
 
             var text = selected ? Colors.Black : Colors.White;
             var sub = selected ? Colors.Rgb(60, 50, 20) : Colors.Rgb(170, 165, 158);
 
-            fonts.DrawText(r.Handle, SlotLabel(hand), menuX + 12, y, 12, text);
+            fonts.DrawText(r.Handle, SlotLabel(slot), menuX + 12, y, 12, text);
 
-            var held = player.Equipment.TryGetValue(hand, out var current) ? current.Name : "-";
-            fonts.DrawText(r.Handle, $"今: {held}", menuX + 52, y + 1, 10, text);
+            var held = player.Equipment.TryGetValue(slot, out var current) ? current.Name : "-";
+            var labelW = fonts.Measure(SlotLabel(slot), 12).Item1;
+            fonts.DrawText(r.Handle, $"今: {held}", menuX + 16 + Math.Max(36f, labelW), y + 1, 10, text);
 
             // Every stat this particular swap moves — the gain from the new item and the loss from whatever it
-            // displaces, which is what actually distinguishes the two hands.
-            var deltas = HandSwapDeltas(player, item, hand);
+            // displaces, which is what actually distinguishes the two slots. Consumables move none, so the row
+            // says what the swap really costs instead: the item that gets put away.
+            var deltas = SlotSwapDeltas(player, item, slot);
             var dx = menuX + 12;
             foreach (var (label, before, after) in deltas)
             {
@@ -372,7 +455,10 @@ public sealed class InventoryOverlay
                 dx += dw;
             }
             if (deltas.Count == 0)
-                fonts.DrawText(r.Handle, "変化なし", dx, y + 14, 9, sub);
+            {
+                var swapNote = current is null ? "変化なし" : $"{current.Name}は鞄に戻る";
+                fonts.DrawText(r.Handle, swapNote, dx, y + 14, 9, sub);
+            }
 
             y += rowH;
         }
@@ -380,19 +466,30 @@ public sealed class InventoryOverlay
         fonts.DrawText(r.Handle, "[Enter]決定 [Esc]やめる", menuX + 10, menuY + menuH - 14, 9, Colors.Border);
     }
 
-    /// <summary>Stat changes from putting <paramref name="item"/> in a specific hand, replacing what is there.</summary>
-    private static List<(string Label, int Before, int After)> HandSwapDeltas(Player player, Item item, EquipSlot hand)
+    /// <summary>Stat changes from putting <paramref name="item"/> in a specific slot, replacing what is there.</summary>
+    private static List<(string Label, int Before, int After)> SlotSwapDeltas(Player player, Item item, EquipSlot slot)
     {
-        var simulated = new Dictionary<EquipSlot, Item>(player.Equipment) { [hand] = item };
+        var simulated = new Dictionary<EquipSlot, Item>(player.Equipment) { [slot] = item };
         return AllStatDeltas(player, player.Equipment, simulated);
     }
 
     /// <summary>Shows the stat this item would change if equipped right now — the item no longer prints
     /// its rank, so this comparison is how the player judges whether it's actually an upgrade.</summary>
-    private static List<(string Label, int Before, int After)> BuildEquipPreview(Player player, Item item)
+    private List<(string Label, int Before, int After)> BuildEquipPreview(Player player, Item item)
     {
         if (item.Category == ItemCategory.Bag)
             return new() { ("鞄容量", player.BagCapacity, item.BagCapacity) };
+
+        // A readied consumable moves no stats at all; what it buys is a free bag slot, so that is what the
+        // preview reports — and it correctly shows no gain when the slot it would take is already occupied.
+        if (item.IsPocketable)
+        {
+            if (_selectedItemSlot is not null)
+                return new();
+            var free = player.BagCapacity - player.Bag.Count;
+            var displaces = Player.ItemSlots.All(player.Equipment.ContainsKey);
+            return new() { ("鞄の空き", free, free + (displaces ? 0 : 1)) };
+        }
 
         if (!item.IsEquippable)
             return new();
@@ -442,15 +539,10 @@ public sealed class InventoryOverlay
         ItemCategory.Helmet => EquipSlot.Head,
         ItemCategory.Gauntlet => EquipSlot.Arm,
         ItemCategory.Shoes => EquipSlot.Feet,
+        ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote =>
+            Player.ItemSlots.FirstOrDefault(s => !player.Equipment.ContainsKey(s), EquipSlot.Item1),
         _ => EquipSlot.RightHand,
     };
-
-    private static void RemoveOne(List<Item> bag, Item item)
-    {
-        item.Quantity--;
-        if (item.Quantity <= 0)
-            bag.Remove(item);
-    }
 
     public void Draw(GameContext ctx)
     {
@@ -485,15 +577,23 @@ public sealed class InventoryOverlay
             var has = player.Equipment.TryGetValue(slot, out var eq);
             return $"{SlotLabel(slot)}: {(has ? eq!.Name : "-")}";
         }).ToArray();
-        var slotMaxWidth = MenuNav.MaxLabelWidth(ctx, slotLabels, 11);
+        // Eight slots stacked in one column would push the bag off the bottom of the panel, so they run in two
+        // columns of four — column-major, matching the order the cursor moves in.
+        var slotMaxWidth = Math.Min(230f, MenuNav.MaxLabelWidth(ctx, slotLabels, 11));
+        const float slotColumnX = 240f;
         for (var i = 0; i < slotLabels.Length; i++)
         {
-            MenuNav.DrawRow(ctx, 76, yy, slotMaxWidth, 15, slotLabels[i], 11, i == _cursor);
-            yy += 15;
+            var col = i / SlotRows;
+            var row = i % SlotRows;
+            MenuNav.DrawRow(ctx, 76 + col * slotColumnX, yy + row * 15, slotMaxWidth, 15, slotLabels[i], 11, i == _cursor);
         }
+        yy += SlotRows * 15;
 
         yy += 8;
-        fonts.DrawText(r.Handle, $"鞄 ({player.Bag.Count}/{player.BagCapacity}):", 76, yy, 12, Colors.Highlight);
+        // Naming the worn bag here is what makes swapping to a found one a comparison rather than a guess —
+        // it is the only place the current bag is written down.
+        var wornBag = player.EquippedBag?.Name ?? "なし";
+        fonts.DrawText(r.Handle, $"鞄: {wornBag} ({player.Bag.Count}/{player.BagCapacity})", 76, yy, 12, Colors.Highlight);
         yy += 18;
         var bagLabels = player.Bag.Select(item => $"{item.Name} x{item.Quantity}").ToArray();
         var bagMaxWidth = MenuNav.MaxLabelWidth(ctx, bagLabels, 11);
@@ -503,21 +603,21 @@ public sealed class InventoryOverlay
             yy += 15;
         }
 
-        if (_phase == Phase.HandSelect && _pendingHandItem is { } handItem)
+        if (_phase == Phase.SlotSelect && _pendingSlotItem is { } slotItem)
         {
-            DrawHandSelect(ctx, player, handItem);
+            DrawSlotSelect(ctx, player, slotItem);
         }
-        else if (_phase == Phase.ItemActionMenu && _selectedBagItem is not null)
+        else if (_phase == Phase.ItemActionMenu && _selectedItem is not null)
         {
             var actionLabels = _availableActions.Select(ActionLabel).ToArray();
             var actionMaxWidth = MenuNav.MaxLabelWidth(ctx, actionLabels, 12);
-            var preview = BuildEquipPreview(player, _selectedBagItem);
+            var preview = BuildEquipPreview(player, _selectedItem);
             var previewH = preview.Count * 14;
             var menuH = 24 + previewH + actionLabels.Length * 18;
             var menuY = 200f;
             r.FillRect(300, menuY, 260, menuH, Colors.PanelBg);
             r.DrawRect(300, menuY, 260, menuH, Colors.Border);
-            fonts.DrawText(r.Handle, _selectedBagItem.Name, 310, menuY + 4, 11, Colors.Highlight);
+            fonts.DrawText(r.Handle, _selectedItem.Name, 310, menuY + 4, 11, Colors.Highlight);
 
             var py = menuY + 20;
             foreach (var (label, before, after) in preview)
@@ -546,6 +646,8 @@ public sealed class InventoryOverlay
         EquipSlot.Body => "胴",
         EquipSlot.Head => "頭",
         EquipSlot.Feet => "足",
+        EquipSlot.Item1 => "アイテム1",
+        EquipSlot.Item2 => "アイテム2",
         _ => slot.ToString(),
     };
 }

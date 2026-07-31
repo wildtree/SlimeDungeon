@@ -2,7 +2,12 @@ using System.Text.Json.Serialization;
 
 namespace SlimeDungeon.Domain;
 
-public enum EquipSlot { RightHand, LeftHand, Arm, Body, Head, Feet }
+/// <summary>
+/// Saves carry these as the dictionary keys of <see cref="Player.Equipment"/>, which System.Text.Json writes
+/// by name — so entries may be added freely, but an existing name must never be changed or a save would load
+/// with that piece of gear silently missing.
+/// </summary>
+public enum EquipSlot { RightHand, LeftHand, Arm, Body, Head, Feet, Item1, Item2 }
 
 public enum ItemCategory { Weapon, Shield, Armor, Helmet, Gauntlet, Shoes, Bag, Herb, Antidote, Potion, Scroll, FullMapReveal }
 
@@ -46,11 +51,28 @@ public sealed class Item
     /// <summary>Potion: which resource it restores.</summary>
     public PotionKind PotionKind { get; init; }
 
-    /// <summary>Equippable categories occupy exactly one of the six equipment slots.
+    /// <summary>Gear that occupies one of the six body slots.
     /// Weapon/Shield may go in either hand (the player picks); everything else has one fixed slot.</summary>
     [JsonIgnore]
     public bool IsEquippable => Category is ItemCategory.Weapon or ItemCategory.Shield or ItemCategory.Armor
         or ItemCategory.Helmet or ItemCategory.Gauntlet or ItemCategory.Shoes;
+
+    /// <summary>
+    /// Consumables that can be readied in one of the two item slots. Only readied items can be reached in the
+    /// middle of a fight — rummaging through a pack while a slime is on you is not something the spec allows —
+    /// and in exchange a readied item is off the bag's books, freeing a slot for loot.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsPocketable => Category is ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote;
+
+    /// <summary>
+    /// True for anything the player can wear or carry in a slot of its own — body gear, a readied consumable,
+    /// or the bag itself. The bag has no <see cref="EquipSlot"/> (it lives in <see cref="Player.EquippedBag"/>),
+    /// but it is still equipment as far as the inventory screen is concerned, and leaving it out of this meant a
+    /// bag picked up in a dungeon could only ever be thrown away.
+    /// </summary>
+    [JsonIgnore]
+    public bool HasEquipSlot => IsEquippable || IsPocketable || Category == ItemCategory.Bag;
 
     public bool CanEquipToSlot(EquipSlot slot) => Category switch
     {
@@ -59,6 +81,8 @@ public sealed class Item
         ItemCategory.Helmet => slot == EquipSlot.Head,
         ItemCategory.Gauntlet => slot == EquipSlot.Arm,
         ItemCategory.Shoes => slot == EquipSlot.Feet,
+        ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote =>
+            slot is EquipSlot.Item1 or EquipSlot.Item2,
         _ => false,
     };
 

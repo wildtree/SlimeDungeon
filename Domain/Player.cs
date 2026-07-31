@@ -44,6 +44,40 @@ public sealed class Player
     public Quest? ActiveQuest { get; set; }
     public List<Quest> OpenQuests { get; set; } = new();
 
+    public PlayerCounters Counters { get; set; } = new();
+
+    /// <summary>Every title earned so far, in the order they were awarded. Titles are never lost.</summary>
+    public List<TitleId> EarnedTitles { get; set; } = new();
+
+    /// <summary>Which earned title shows on the guild card; null means none is displayed.</summary>
+    public TitleId? DisplayedTitle { get; set; }
+
+    /// <summary>Takes in gold, keeping the lifetime tally in step. Spending goes straight to <see cref="Gold"/>.</summary>
+    public void EarnGold(int amount)
+    {
+        if (amount <= 0)
+            return;
+        Gold += amount;
+        Counters.GoldEarned += amount;
+    }
+
+    [JsonIgnore]
+    public int TotalSlimesDefeated => KillCounts.Values.Sum();
+
+    [JsonIgnore]
+    public int DistinctSlimeColorsDefeated => KillLog.Select(k => k.Color).Distinct().Count();
+
+    /// <summary>Highest-ranked slime ever defeated, or null if none yet.</summary>
+    [JsonIgnore]
+    public Rank? BestSlimeRankDefeated
+    {
+        get
+        {
+            var ranks = KillLog.Select(k => k.Rank).ToList();
+            return ranks.Count == 0 ? null : ranks.Max();
+        }
+    }
+
     public const int MaxKnownSpells = 4;
 
     [JsonIgnore]
@@ -61,6 +95,47 @@ public sealed class Player
     public int BagCapacity => EquippedBag?.BagCapacity ?? 0;
     [JsonIgnore]
     public bool BagHasRoom => Bag.Count < BagCapacity;
+
+    /// <summary>The two consumable slots, in the order every menu lists them.</summary>
+    public static readonly EquipSlot[] ItemSlots = { EquipSlot.Item1, EquipSlot.Item2 };
+
+    /// <summary>Consumables readied in the item slots — the only ones reachable during a fight.</summary>
+    [JsonIgnore]
+    public IEnumerable<Item> ReadiedItems =>
+        ItemSlots.Where(Equipment.ContainsKey).Select(s => Equipment[s]);
+
+    /// <summary>
+    /// Everything on the adventurer's person: what is in the bag plus what is readied. Readied items are not in
+    /// the bag, so anything counting what the player is carrying (quest deliveries, crafting stock) has to look
+    /// here or readying an item would appear to make it vanish.
+    /// </summary>
+    [JsonIgnore]
+    public IEnumerable<Item> CarriedItems => Bag.Concat(ReadiedItems);
+
+    /// <summary>
+    /// Consumes one of <paramref name="item"/> wherever it is being carried, emptying its item slot or dropping
+    /// it from the bag once the last one is gone. Returns false if the player is not carrying it at all.
+    /// </summary>
+    public bool ConsumeOne(Item item)
+    {
+        if (Bag.Contains(item))
+        {
+            if (--item.Quantity <= 0)
+                Bag.Remove(item);
+            return true;
+        }
+
+        foreach (var slot in ItemSlots)
+        {
+            if (!Equipment.TryGetValue(slot, out var readied) || !ReferenceEquals(readied, item))
+                continue;
+            if (--item.Quantity <= 0)
+                Equipment.Remove(slot);
+            return true;
+        }
+
+        return false;
+    }
 
     [JsonIgnore]
     public int EffectiveStr => Stats.Str + Equipment.Values.Where(i => i.Category == ItemCategory.Weapon && i.WeaponKind == WeaponKind.Sword).Sum(i => i.StatBonus);
@@ -83,6 +158,9 @@ public sealed class Player
         p.Equipment[EquipSlot.Head] = ItemFactory.LeatherHat();
         p.Equipment[EquipSlot.Body] = ItemFactory.LeatherArmor();
         p.Equipment[EquipSlot.Feet] = ItemFactory.WoodShoes();
+
+        // Registering is itself the first deed, so the card is never blank.
+        Titles.Refresh(p);
         return p;
     }
 

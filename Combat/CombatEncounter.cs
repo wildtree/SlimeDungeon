@@ -111,6 +111,7 @@ public sealed class CombatEncounter
             return new ActionResult(ActionOutcome.NotEnoughMp, 0, "MPが足りない！");
 
         Player.Stats.Mp -= cost;
+        Player.Counters.SpellsCast++;
         var effectiveInt = Player.EffectiveInt + (int)spell.Rank * 2;
 
         switch (def.Effect)
@@ -229,6 +230,7 @@ public sealed class CombatEncounter
             PlayerFled = true;
             BattleOver = true;
             PlayerPoisoned = false;
+            Player.Counters.TimesFled++;
             AddLog($"{Player.Name}は逃げ出した！");
             return new ActionResult(ActionOutcome.Fled, 0, "逃げ出した！");
         }
@@ -284,6 +286,7 @@ public sealed class CombatEncounter
         BattleOver = true;
         PlayerWon = true;
         PlayerPoisoned = false;
+        Player.Counters.BattlesWon++;
 
         foreach (var e in Enemies)
         {
@@ -291,7 +294,7 @@ public sealed class CombatEncounter
             ExpReward += e.ExpValue(DungeonElement);
         }
         GoldReward = Enemies.Sum(e => (int)e.Rank * 3);
-        Player.Gold += GoldReward;
+        Player.EarnGold(GoldReward);
         LevelUp = Player.AddExp(ExpReward);
         AddLog($"勝利！ EXP {ExpReward} 獲得、{GoldReward}G 獲得");
         if (LevelUp is { } up)
@@ -335,10 +338,6 @@ public sealed class CombatEncounter
     private static void ApplyDamage(Slime target, int dmg) =>
         target.Stats.Hp = Math.Max(0, target.Stats.Hp - dmg);
 
-    private void RemoveOneFromBag(Item item)
-    {
-        item.Quantity--;
-        if (item.Quantity <= 0)
-            Player.Bag.Remove(item);
-    }
+    /// <summary>Spends one of a consumable, whether it was readied in an item slot or loose in the bag.</summary>
+    private void RemoveOneFromBag(Item item) => Player.ConsumeOne(item);
 }

@@ -12,6 +12,7 @@ public sealed class GuildScreen : IScreen
 {
     private int _cursor;
     private string? _message;
+    private List<TitleDefinition> _newTitles = new();
 
     public void OnEnter(GameContext ctx)
     {
@@ -24,6 +25,12 @@ public sealed class GuildScreen : IScreen
         }
 
         QuestFactory.RefillExpiredBoardSlots(player);
+
+        // Titles are settled up here rather than at each individual deed: the player always comes back to the
+        // guild, so one check on arrival catches everything — kills, chests, crafting, days survived — and the
+        // guild recognising your work on your return is where the announcement belongs anyway.
+        _newTitles = Titles.Refresh(player);
+
         _cursor = 0;
         SaveManager.Save(player);
     }
@@ -39,6 +46,7 @@ public sealed class GuildScreen : IScreen
         "ポーション調合",
         "ダンジョンへ",
         $"回復 ({HealCost(player)}G)",
+        "称号",
         "討伐記録",
     ];
 
@@ -46,6 +54,15 @@ public sealed class GuildScreen : IScreen
     {
         var input = ctx.Input;
         var player = ctx.Player!;
+
+        // Newly awarded titles are acknowledged before anything else can be done.
+        if (_newTitles.Count > 0)
+        {
+            if (MenuNav.Confirmed(input))
+                _newTitles = new List<TitleDefinition>();
+            return;
+        }
+
         var labels = BuildMenuLabels(player);
         _cursor = MenuNav.Move(input, _cursor, labels.Length);
 
@@ -59,7 +76,8 @@ public sealed class GuildScreen : IScreen
             case 2: ctx.Screens.ChangeTo(new PotionCraftScreen()); break;
             case 3: ctx.Screens.ChangeTo(new DungeonSelectScreen()); break;
             case 4: HandleHeal(player); break;
-            case 5: ctx.ShowKillLog = true; break;
+            case 5: ctx.Screens.ChangeTo(new TitleSelectScreen()); break;
+            case 6: ctx.ShowKillLog = true; break;
         }
     }
 
@@ -132,8 +150,58 @@ public sealed class GuildScreen : IScreen
         }
 
         if (_message is not null)
-            fonts.DrawText(r.Handle, _message, sheetX + 2, sheetY - 16, 11, Colors.Gold);
+            DrawReceptionistSay(ctx, _message, sheetX, sheetY);
 
         StatusPanel.Draw(ctx, 400, 0, 400);
+
+        if (_newTitles.Count > 0)
+            TitleAwardPopup.Draw(ctx, _newTitles);
+    }
+
+    /// <summary>
+    /// The reply to whatever the player just asked for, as a speech bubble on the wall beside the receptionist.
+    /// It used to be bare gold text laid straight over the backdrop, which was unreadable against the timber and
+    /// her vest — and these lines are hers, so a bubble says who is speaking as well as making it legible.
+    /// </summary>
+    private static void DrawReceptionistSay(GameContext ctx, string text, float sheetX, float sheetY)
+    {
+        var r = ctx.Renderer;
+        var fonts = ctx.Fonts;
+
+        const float fontSize = 11f;
+        var (textW, textH) = fonts.Measure(text, fontSize);
+
+        var w = textW + 20f;
+        var h = textH + 12f;
+        var x = sheetX;
+        // Sits just above the command sheet, so it is read on the way to the menu rather than hunted for. The
+        // sheet's top moves with the number of commands, hence anchoring to it instead of a fixed line.
+        var y = sheetY - 12f - h;
+
+        var fill = Colors.Rgb(250, 246, 236);
+        var edge = Colors.Rgb(146, 122, 92);
+        var ink = Colors.Rgb(54, 40, 26);
+
+        r.FillRect(x + 2, y + 3, w, h, Colors.Rgb(150, 132, 106));
+        r.FillRect(x, y, w, h, fill);
+        r.DrawRect(x, y, w, h, edge);
+
+        // Tail pointing right, toward the receptionist standing behind the counter. Drawn as an outline
+        // triangle with the fill inset over it — the renderer only fills rectangles, so it is built column by
+        // column. It starts a pixel inside the bubble so the border does not cut across the join.
+        const float tailW = 13f;
+        var tailCy = y + h * 0.62f;
+        for (var i = 0f; i < tailW; i++)
+        {
+            var half = (tailW - i) * 0.5f + 1f;
+            r.FillRect(x + w - 2 + i, tailCy - half, 1, half * 2, edge);
+        }
+        for (var i = 0f; i < tailW - 2; i++)
+        {
+            var half = (tailW - 2 - i) * 0.5f;
+            r.FillRect(x + w - 2 + i, tailCy - half, 1, half * 2, fill);
+        }
+
+        fonts.DrawText(r.Handle, text, x + 10, y + 6, fontSize, ink);
     }
 }

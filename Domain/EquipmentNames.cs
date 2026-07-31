@@ -56,6 +56,15 @@ public static class EquipmentNames
         [Rank.A] = "ミスリルシューズ", [Rank.S] = "伝説の靴", [Rank.SS] = "神話の靴",
     };
 
+    /// <summary>The H entry matches the literal name of the starting bag, so a found H-rank bag and the one
+    /// every adventurer registers with are not two names for the same thing.</summary>
+    private static readonly Dictionary<Rank, string> Bags = new()
+    {
+        [Rank.H] = "袋", [Rank.G] = "革の袋", [Rank.F] = "旅人の背嚢", [Rank.E] = "大きな背嚢",
+        [Rank.D] = "行商人のカバン", [Rank.C] = "魔法の袋", [Rank.B] = "秘銀の袋",
+        [Rank.A] = "ミスリルバッグ", [Rank.S] = "伝説の袋", [Rank.SS] = "神話の袋",
+    };
+
     public static string Sword(Rank rank) => Swords[rank];
     public static string Wand(Rank rank) => Wands[rank];
     public static string Shield(Rank rank) => Shields[rank];
@@ -63,6 +72,7 @@ public static class EquipmentNames
     public static string Helmet(Rank rank) => Helmets[rank];
     public static string Gauntlet(Rank rank) => Gauntlets[rank];
     public static string Shoes(Rank rank) => ShoesNames[rank];
+    public static string Bag(Rank rank) => Bags[rank];
 
     /// <summary>Saves made before this flavor-name table existed still carry the old literal
     /// "◯◯(H)"-style names (Name is stored verbatim per item). Detect that exact old pattern and
@@ -70,6 +80,15 @@ public static class EquipmentNames
     /// untouched since it can't collide with the old auto-generated suffix.</summary>
     public static void MigrateStaleName(Item item)
     {
+        // Bags kept their own dry auto-name ("Gランクの鞄") because they were missed when the rest of the gear
+        // was given flavor names, so they need their own pattern check.
+        if (item.Category == ItemCategory.Bag)
+        {
+            if (item.Name == $"{item.Rank.Label()}ランクの鞄")
+                item.Name = Bag(item.Rank);
+            return;
+        }
+
         if (!item.IsEquippable || !item.Name.EndsWith($"({item.Rank.Label()})"))
             return;
 

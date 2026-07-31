@@ -15,7 +15,10 @@ public sealed class PotionCraftScreen : IScreen
     private Item? _selectedHerb;
     private string? _message;
 
-    private static List<Item> Herbs(Player player) => player.Bag.Where(i => i.Category == ItemCategory.Herb).ToList();
+    /// <summary>Herbs anywhere on the player, bag or readied item slot alike — a herb in an item slot is still
+    /// stock the alchemist can work with, and hiding it would look like it had gone missing.</summary>
+    private static List<Item> Herbs(Player player) =>
+        player.CarriedItems.Where(i => i.Category == ItemCategory.Herb).ToList();
 
     public void Update(GameContext ctx, float dt)
     {
@@ -60,17 +63,20 @@ public sealed class PotionCraftScreen : IScreen
             _message = "所持金が足りない";
             return;
         }
-        // Crafting takes the herb out and hands a potion back, so it is slot-neutral and must not be blocked
-        // by a full bag. Only a stacked herb needs a spare slot, because its bag entry survives being consumed.
-        if (_selectedHerb.Quantity > 1 && !player.BagHasRoom)
+        // Crafting takes the herb out and hands a potion back, so a herb consumed out of the bag is slot-neutral
+        // and must not be blocked by a full bag. A stacked herb keeps its bag entry, and a readied herb never
+        // occupied the bag in the first place, so both of those do need a spare slot for the potion.
+        var freesBagSlot = player.Bag.Contains(_selectedHerb) && _selectedHerb.Quantity <= 1;
+        if (!freesBagSlot && !player.BagHasRoom)
         {
             _message = "鞄がいっぱいだ";
             return;
         }
 
         player.Gold -= cost;
-        RemoveOne(player.Bag, _selectedHerb);
+        player.ConsumeOne(_selectedHerb);
         player.Bag.Add(ItemFactory.CreatePotion(_selectedHerb.Rank, kind));
+        player.Counters.PotionsCrafted++;
         _message = $"{(kind == PotionKind.Hp ? "HP" : "MP")}ポーションを作った";
         _phase = Phase.SelectHerb;
         _cursor = 0;

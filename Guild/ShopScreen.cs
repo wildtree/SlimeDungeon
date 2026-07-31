@@ -86,7 +86,7 @@ public sealed class ShopScreen : IScreen
         else
         {
             var item = player.Bag[_cursor];
-            player.Gold += item.SellValue;
+            player.EarnGold(item.SellValue);
             player.Bag.RemoveAt(_cursor);
             _message = $"{item.Name}を{item.SellValue}Gで売却した";
             if (_cursor >= player.Bag.Count && _cursor > 0)

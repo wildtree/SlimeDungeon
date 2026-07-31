@@ -37,6 +37,7 @@ public sealed class DungeonSelectScreen : IScreen
             var rank = ranks[_cursor];
             var element = DungeonGenerator.RollDungeonElement();
             var map = DungeonGenerator.Generate(rank, element);
+            player.Counters.DungeonVisits++;
             ctx.Screens.ChangeTo(new DungeonScreen(map, new GuildScreen()));
         }
     }
