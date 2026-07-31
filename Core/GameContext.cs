@@ -11,6 +11,7 @@ public sealed class GameContext
     public required FontService Fonts { get; init; }
     public required ScreenManager Screens { get; init; }
     public required SpriteFactory Sprites { get; init; }
+    public required AudioService Audio { get; init; }
     public required IntPtr Window { get; init; }
 
     public Player? Player;

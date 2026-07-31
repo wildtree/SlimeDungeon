@@ -51,7 +51,7 @@ public sealed class QuestBoardScreen : IScreen
             }
 
             if (MenuNav.Confirmed(input))
-                ConfirmActiveQuest(player, active);
+                ConfirmActiveQuest(ctx, player, active);
             return;
         }
 
@@ -71,7 +71,7 @@ public sealed class QuestBoardScreen : IScreen
     /// that finishes the contract it is reported in the same keypress. Handed-in items leave the bag
     /// immediately, so they are forfeited if the quest later expires or is cancelled.
     /// </summary>
-    private void ConfirmActiveQuest(Player player, Quest active)
+    private void ConfirmActiveQuest(GameContext ctx, Player player, Quest active)
     {
         if (active.IsCollection && !active.IsComplete)
         {
@@ -99,6 +99,13 @@ public sealed class QuestBoardScreen : IScreen
         var gold = active.RewardGold;
         _levelUp = ReportQuest(player, active);
         _message = $"クエスト達成！ 報酬 {gold}G ・ EXP {exp}";
+
+        // Both can land on the same report. The popups queue with promotion first, so its fanfare is the one
+        // that plays — a level is a step, a promotion is the news.
+        if (_rankUp is not null)
+            ctx.Audio.Play(SoundId.RankUpFanfare);
+        else if (_levelUp is not null)
+            ctx.Audio.Play(SoundId.LevelUpFanfare);
     }
 
     private LevelUpSummary? ReportQuest(Player player, Quest quest)

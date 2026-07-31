@@ -12,6 +12,7 @@ public sealed class CombatScreen : IScreen
     private enum MenuCommand { Attack, Magic, Item, Flee }
 
     private readonly IScreen _dungeonScreen;
+    private AudioService _audio = null!;
     private CombatEncounter _battle = null!;
     private Phase _phase = Phase.Menu;
     private int _cursor;
@@ -35,6 +36,7 @@ public sealed class CombatScreen : IScreen
     public void OnEnter(GameContext ctx)
     {
         AssignDisplayLabels(Enemies);
+        _audio = ctx.Audio;
         _battle = new CombatEncounter { Player = ctx.Player!, Enemies = Enemies, DungeonElement = DungeonElement, DungeonRank = DungeonRank };
         _battle.Log.Add($"{string.Join("・", Enemies.Select(e => e.DisplayLabel))}のスライムが現れた！");
         BeginRound();
@@ -58,7 +60,7 @@ public sealed class CombatScreen : IScreen
         {
             if (_battle.BattleOver)
                 break;
-            _battle.EnemyTurn(enemy);
+            PlayEnemyTurn(enemy);
         }
 
         _roundLog.AddRange(_battle.Log.Skip(logStart));
@@ -71,6 +73,17 @@ public sealed class CombatScreen : IScreen
 
         _phase = Phase.Menu;
         _cursor = 0;
+    }
+
+    /// <summary>
+    /// A slime's turn, with the impact sound when it actually connects. Only on a landed blow: a round where
+    /// everything fumbles should sound like nothing happened, because nothing did.
+    /// </summary>
+    private void PlayEnemyTurn(Slime enemy)
+    {
+        var result = _battle.EnemyTurn(enemy);
+        if (result.Outcome == ActionOutcome.Hit && result.Amount > 0)
+            _audio.Play(SoundId.WeaponHit);
     }
 
     /// <summary>Gives each enemy a stable label for the whole battle: the plain color name when it's the
@@ -130,9 +143,14 @@ public sealed class CombatScreen : IScreen
                 if (input.WasPressed(SDL.Keycode.Return) || input.WasPressed(SDL.Keycode.Space))
                 {
                     if (_battle.LevelUp is not null)
+                    {
+                        ctx.Audio.Play(SoundId.LevelUpFanfare);
                         _phase = Phase.LevelUpSummary;
+                    }
                     else
+                    {
                         ctx.Screens.ChangeTo(_dungeonScreen);
+                    }
                 }
                 break;
             case Phase.LevelUpSummary:
@@ -193,6 +211,7 @@ public sealed class CombatScreen : IScreen
         if (input.WasPressed(SDL.Keycode.Return) || input.WasPressed(SDL.Keycode.Space))
         {
             var target = alive[_cursor];
+            ctx.Audio.Play(SoundId.WeaponHit);
             _pendingPlayerAction = () => _battle.PlayerAttack(target);
             ResolveRound();
         }
@@ -214,6 +233,10 @@ public sealed class CombatScreen : IScreen
             _roundLog.Add("MPが足りない");
             return;
         }
+
+        // Restorative magic gets its own sound — a spell that mends should not land like one that burns.
+        var effect = SpellDefinitions.All[spell.Id].Effect;
+        ctx.Audio.Play(effect == SpellEffect.Attack ? SoundId.MagicAttack : SoundId.MagicHeal);
 
         // Attack spells hit the whole pack, so none of the spells need a target picked any more.
         _pendingPlayerAction = () => _battle.PlayerCastSpell(spell, null);
@@ -270,7 +293,7 @@ public sealed class CombatScreen : IScreen
                 // Skip anything that died — or slipped away — since the round's initiative order was fixed.
                 if (!enemy.IsEngaged)
                     continue;
-                _battle.EnemyTurn(enemy);
+                PlayEnemyTurn(enemy);
             }
         }
 

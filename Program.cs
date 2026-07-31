@@ -22,6 +22,7 @@ SDL.SetRenderLogicalPresentation(rendererHandle, 640, 400, SDL.RendererLogicalPr
 var renderer = new Renderer(rendererHandle);
 using var fonts = new FontService();
 using var sprites = SpriteFactory.BuildAll(rendererHandle);
+using var audio = new AudioService();
 var input = new InputManager();
 var screens = new ScreenManager();
 
@@ -32,6 +33,7 @@ var ctx = new GameContext
     Fonts = fonts,
     Screens = screens,
     Sprites = sprites,
+    Audio = audio,
     Window = window,
 };
 

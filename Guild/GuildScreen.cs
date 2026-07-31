@@ -30,6 +30,8 @@ public sealed class GuildScreen : IScreen
         // guild, so one check on arrival catches everything — kills, chests, crafting, days survived — and the
         // guild recognising your work on your return is where the announcement belongs anyway.
         _newTitles = Titles.Refresh(player);
+        if (_newTitles.Count > 0)
+            ctx.Audio.Play(SoundId.TitleFanfare);
 
         _cursor = 0;
         SaveManager.Save(player);
