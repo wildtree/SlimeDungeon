@@ -40,6 +40,12 @@ public sealed class InputManager
                 "gamepad button numbering is not what the d-pad constants assume; d-pad input may be wrong " +
                 $"(South={south}, Misc1={misc1})");
 
+        int leftX = (int)SDL.GamepadAxis.LeftX, leftTrigger = (int)SDL.GamepadAxis.LeftTrigger;
+        if (leftX != 0 || leftTrigger != 4)
+            Console.Error.WriteLine(
+                "gamepad axis numbering is not what the stick constant assumes; stick input may be wrong " +
+                $"(LeftX={leftX}, LeftTrigger={leftTrigger})");
+
         OpenConnectedGamepads();
     }
 
@@ -130,6 +136,42 @@ public sealed class InputManager
     }
 
     public bool IsDown(SDL.Keycode key) => _down.Contains(key);
+
+    public bool IsDown(SDL.GamepadButton button) => _padDown.Contains(button);
+
+    /// <summary>
+    /// How far the left stick is pushed, past a dead zone. Sticks rest slightly off-centre and drift with
+    /// age, so a raw reading would walk the player across the room on its own.
+    /// </summary>
+    private const short StickDeadZone = 12000;
+
+    /// <summary>
+    /// The direction the player is asking to walk, from the d-pad or the left stick. Only one axis at a time:
+    /// the dungeon moves on a grid, so a stick held diagonally picks whichever way it is pushed hardest.
+    /// </summary>
+    public (int Dx, int Dy) ReadStickDirection()
+    {
+        foreach (var pad in _gamepads.Values)
+        {
+            var x = SDL.GetGamepadAxis(pad, SDL.GamepadAxis.LeftX);
+            var y = SDL.GetGamepadAxis(pad, LeftYAxis);
+
+            if (Math.Abs((int)x) < StickDeadZone && Math.Abs((int)y) < StickDeadZone)
+                continue;
+
+            return Math.Abs((int)x) >= Math.Abs((int)y)
+                ? (Math.Sign(x), 0)
+                : (0, Math.Sign(y));
+        }
+        return (0, 0);
+    }
+
+    /// <summary>
+    /// SDL3's axis enum runs LeftX, LeftY, RightX, RightY, then the triggers; the binding only names some of
+    /// them, so the left stick's vertical axis is its raw value. Anchored by LeftX being 0 and LeftTrigger
+    /// being 4, which the constructor checks.
+    /// </summary>
+    private const SDL.GamepadAxis LeftYAxis = (SDL.GamepadAxis)1;
 
     public bool WasPressed(SDL.Keycode key) => _pressedThisFrame.Contains(key);
 

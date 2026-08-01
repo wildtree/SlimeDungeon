@@ -141,11 +141,20 @@ public sealed class DungeonScreen : IScreen
         // Accepts both a held key (continuous movement) and a bare press-edge, so a single
         // quick tap still advances one half-step even if its key-up lands in the same poll batch.
         bool Held(SDL.Keycode k) => input.IsDown(k) || input.WasPressed(k);
+        bool PadHeld(SDL.GamepadButton b) => input.IsDown(b) || input.WasPressed(b);
 
-        if (Held(SDL.Keycode.Up)) return (0, -1, Direction.Up);
-        if (Held(SDL.Keycode.Down)) return (0, 1, Direction.Down);
-        if (Held(SDL.Keycode.Left)) return (-1, 0, Direction.Left);
-        if (Held(SDL.Keycode.Right)) return (1, 0, Direction.Right);
+        if (Held(SDL.Keycode.Up) || PadHeld(InputManager.DpadUp)) return (0, -1, Direction.Up);
+        if (Held(SDL.Keycode.Down) || PadHeld(InputManager.DpadDown)) return (0, 1, Direction.Down);
+        if (Held(SDL.Keycode.Left) || PadHeld(InputManager.DpadLeft)) return (-1, 0, Direction.Left);
+        if (Held(SDL.Keycode.Right) || PadHeld(InputManager.DpadRight)) return (1, 0, Direction.Right);
+
+        // The stick, for players who never think to reach for the d-pad.
+        var (sx, sy) = input.ReadStickDirection();
+        if (sy < 0) return (0, -1, Direction.Up);
+        if (sy > 0) return (0, 1, Direction.Down);
+        if (sx < 0) return (-1, 0, Direction.Left);
+        if (sx > 0) return (1, 0, Direction.Right);
+
         return (0, 0, null);
     }
 

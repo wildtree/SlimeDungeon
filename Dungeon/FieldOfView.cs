@@ -64,8 +64,18 @@ public sealed class FieldOfView
                 return true;
 
             var e2 = 2 * err;
-            if (e2 >= dy) { err += dy; x += sx; }
-            if (e2 <= dx) { err += dx; y += sy; }
+            var stepX = e2 >= dy;
+            var stepY = e2 <= dx;
+
+            // A step that moves in both axes at once passes exactly through the corner where four tiles meet.
+            // When the two tiles flanking that corner are both walls, the ray was slipping between them and
+            // lighting up whatever lay beyond — the seam you could see through where blocks sat diagonally.
+            // Two walls touching corner-to-corner are a wall.
+            if (stepX && stepY && map.IsWall(x + sx, y) && map.IsWall(x, y + sy))
+                return false;
+
+            if (stepX) { err += dy; x += sx; }
+            if (stepY) { err += dx; y += sy; }
         }
     }
 }
