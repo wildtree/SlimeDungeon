@@ -75,7 +75,9 @@ public static class StatusPanel
         var (capW, _) = fonts.Measure(capacity, 10);
         fonts.DrawText(r.Handle, capacity, x + Width - pad - capW, cy, 10, Colors.Highlight);
 
-        fonts.DrawText(r.Handle, "[I]持ち物 [S]討伐記録", x + pad, y + h - 18, 9, Colors.Border);
+        // The bag and the kill log moved onto the menu, so the old I/S shortcuts no longer exist — this line
+        // was still advertising them.
+        fonts.DrawText(r.Handle, $"[{MenuNav.MenuHint(ctx.Input)}]メニュー", x + pad, y + h - 18, 9, Colors.Border);
     }
 
     // ---- Guild card -----------------------------------------------------------

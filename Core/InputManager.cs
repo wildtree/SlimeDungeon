@@ -39,6 +39,37 @@ public sealed class InputManager
             Console.Error.WriteLine(
                 "gamepad button numbering is not what the d-pad constants assume; d-pad input may be wrong " +
                 $"(South={south}, Misc1={misc1})");
+
+        OpenConnectedGamepads();
+    }
+
+    /// <summary>
+    /// Opens whatever is already plugged in. A controller connected before the game started may never produce
+    /// a GamepadAdded event, so waiting for one means a pad that was there all along is simply never opened.
+    /// </summary>
+    private void OpenConnectedGamepads()
+    {
+        var ids = SDL.GetGamepads(out var count);
+        if (ids is not null)
+        {
+            for (var i = 0; i < count && i < ids.Length; i++)
+                Open(ids[i]);
+        }
+
+        // Reported so a pad that is plugged in but not working can be told apart from one SDL never saw.
+        Console.Error.WriteLine(_gamepads.Count > 0
+            ? $"gamepad: {_gamepads.Count} connected"
+            : "gamepad: none detected (keyboard only)");
+    }
+
+    private void Open(uint id)
+    {
+        if (_gamepads.ContainsKey(id))
+            return;
+
+        var pad = SDL.OpenGamepad(id);
+        if (pad != IntPtr.Zero)
+            _gamepads[id] = pad;
     }
 
     public bool QuitRequested { get; private set; }
@@ -76,16 +107,8 @@ public sealed class InputManager
                 break;
 
             case SDL.EventType.GamepadAdded:
-            {
-                var id = ev.GDevice.Which;
-                if (!_gamepads.ContainsKey(id))
-                {
-                    var pad = SDL.OpenGamepad(id);
-                    if (pad != IntPtr.Zero)
-                        _gamepads[id] = pad;
-                }
+                Open(ev.GDevice.Which);
                 break;
-            }
             case SDL.EventType.GamepadRemoved:
             {
                 var id = ev.GDevice.Which;

@@ -4,7 +4,9 @@ using SlimeDungeon.Graphics;
 using SlimeDungeon.Guild;
 using SlimeDungeon.UI;
 
-if (!SDL.Init(SDL.InitFlags.Video))
+// Gamepad has to be asked for explicitly: without its subsystem running, SDL never opens a controller and
+// never sends a single button event, so the pad bindings looked correct and did nothing at all.
+if (!SDL.Init(SDL.InitFlags.Video | SDL.InitFlags.Gamepad))
 {
     Console.Error.WriteLine($"SDL.Init failed: {SDL.GetError()}");
     return 1;
