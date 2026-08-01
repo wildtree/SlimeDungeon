@@ -23,6 +23,10 @@ public sealed class InventoryOverlay
     private EquipSlot? _selectedItemSlot;
 
     private Item? _pendingSlotItem;
+
+    /// <summary>Non-null only while a dungeon is being explored; see <see cref="GameContext.RevealFullMap"/>.</summary>
+    private Action? _revealFullMap;
+
     private EquipSlot[] _slotChoices = Array.Empty<EquipSlot>();
     private List<ItemAction> _availableActions = new();
 
@@ -45,6 +49,7 @@ public sealed class InventoryOverlay
     {
         var input = ctx.Input;
         var player = ctx.Player!;
+        _revealFullMap = ctx.RevealFullMap;
 
         switch (_phase)
         {
@@ -123,8 +128,14 @@ public sealed class InventoryOverlay
         return actions;
     }
 
+    /// <summary>
+    /// What "使う" applies to outside a fight. Map scrolls belong here: they were reachable only through an
+    /// unadvertised M key while this screen offered nothing but "捨てる". Firecrackers and caltrops do not —
+    /// there is nothing to throw them at until a slime turns up.
+    /// </summary>
     private static bool IsUsableFromInventory(Item item) =>
-        item.Category is ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote or ItemCategory.Scroll;
+        item.Category is ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote
+            or ItemCategory.Scroll or ItemCategory.FullMapReveal;
 
     private static string ActionLabel(ItemAction action) => action switch
     {
@@ -206,6 +217,16 @@ public sealed class InventoryOverlay
             }
             case ItemCategory.Antidote:
                 _message = "戦闘中でないと使えない";
+                break;
+            case ItemCategory.FullMapReveal:
+                if (_revealFullMap is null)
+                {
+                    _message = "ダンジョンの中でしか使えない";
+                    break;
+                }
+                player.ConsumeOne(item);
+                _revealFullMap();
+                _message = $"{item.Name}を使った";
                 break;
             case ItemCategory.Scroll:
                 if (player.KnownSpells.Any(s => s.Id == item.SpellTaught))

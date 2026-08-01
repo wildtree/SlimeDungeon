@@ -26,8 +26,11 @@ public static class LootTables
         // gear. Finding equipment should feel like a small event, not the expected outcome of every chest.
         return roll switch
         {
-            < 0.38 => ItemFactory.CreateHerb(itemRank),
-            < 0.66 => ItemFactory.CreateAntidoteHerb(itemRank),
+            < 0.34 => ItemFactory.CreateHerb(itemRank),
+            < 0.58 => ItemFactory.CreateAntidoteHerb(itemRank),
+            < 0.66 => rnd.Next(2) == 0
+                ? ItemFactory.CreateFirecracker(itemRank)
+                : ItemFactory.CreateCaltrops(itemRank),
             < 0.72 => ItemFactory.CreateWeapon(itemRank, rnd.Next(2) == 0 ? WeaponKind.Sword : WeaponKind.Wand),
             < 0.78 => rnd.Next(3) switch
             {

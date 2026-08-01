@@ -41,6 +41,7 @@ public sealed class SpriteFactory : IDisposable
     private readonly Dictionary<Element, IntPtr> _combatBackdrops = new();
     private readonly Dictionary<SlimeColor, (IntPtr Idle, IntPtr Hop)> _slimes = new();
     private readonly Dictionary<(Gender, Direction, WalkFrame), IntPtr> _player = new();
+    private readonly Dictionary<ItemIconKey, IntPtr> _itemIcons = new();
     private readonly List<IntPtr> _allTextures = new();
 
     /// <summary>Wall/floor/stairs textures tinted to match the dungeon's element (null/None = neutral).</summary>
@@ -87,6 +88,10 @@ public sealed class SpriteFactory : IDisposable
         QuestGatherIcon = Bake(renderer, BuildGatherIcon());
         QuestSlayIcon = Bake(renderer, BuildSlayIcon());
         RankSeal = Bake(renderer, BuildRankSeal());
+        GoldIcon = Bake(renderer, BuildGoldIcon());
+
+        foreach (var key in Enum.GetValues<ItemIconKey>())
+            _itemIcons[key] = Bake(renderer, BuildItemIcon(key));
 
         foreach (var color in Enum.GetValues<SlimeColor>())
         {
@@ -248,6 +253,219 @@ public sealed class SpriteFactory : IDisposable
         c.FillEllipse(4, 6, 1.6, 1.0, leafLight);
         c.FillEllipse(11, 5, 1.6, 1.0, leafLight);
         c.AddOutline(Colors.Rgb(24, 40, 20));
+        return c;
+    }
+
+    // ---- Item icons ------------------------------------------------------------
+
+    /// <summary>
+    /// A small icon per item kind, for anywhere loot is listed rather than merely named. They are deliberately
+    /// silhouettes at this size — 16 pixels is not enough for detail, so each one is built around a shape that
+    /// stays recognisable when it is the only thing distinguishing two rows of text.
+    /// </summary>
+    private const int ItemIconSize = 16;
+
+    /// <summary>Key for the icon table: weapons split by kind, everything else keyed by category alone.</summary>
+    public IntPtr ItemIcon(Item item) =>
+        _itemIcons.TryGetValue(IconKeyFor(item), out var tex) ? tex : _itemIcons[ItemIconKey.Unknown];
+
+    public IntPtr GoldIcon { get; private set; }
+
+    private enum ItemIconKey
+    {
+        Unknown, Sword, Wand, Shield, Armor, Helmet, Gauntlet, Shoes,
+        Bag, Herb, Antidote, HpPotion, MpPotion, Scroll, Map, Firecracker, Caltrops,
+    }
+
+    private static ItemIconKey IconKeyFor(Item item) => item.Category switch
+    {
+        ItemCategory.Weapon => item.WeaponKind == WeaponKind.Sword ? ItemIconKey.Sword : ItemIconKey.Wand,
+        ItemCategory.Shield => ItemIconKey.Shield,
+        ItemCategory.Armor => ItemIconKey.Armor,
+        ItemCategory.Helmet => ItemIconKey.Helmet,
+        ItemCategory.Gauntlet => ItemIconKey.Gauntlet,
+        ItemCategory.Shoes => ItemIconKey.Shoes,
+        ItemCategory.Bag => ItemIconKey.Bag,
+        ItemCategory.Herb => ItemIconKey.Herb,
+        ItemCategory.Antidote => ItemIconKey.Antidote,
+        ItemCategory.Potion => item.PotionKind == PotionKind.Hp ? ItemIconKey.HpPotion : ItemIconKey.MpPotion,
+        ItemCategory.Scroll => ItemIconKey.Scroll,
+        ItemCategory.FullMapReveal => ItemIconKey.Map,
+        ItemCategory.Firecracker => ItemIconKey.Firecracker,
+        ItemCategory.Caltrops => ItemIconKey.Caltrops,
+        _ => ItemIconKey.Unknown,
+    };
+
+    private static PixelCanvas BuildItemIcon(ItemIconKey key)
+    {
+        var c = new PixelCanvas(ItemIconSize, ItemIconSize);
+        var steel = Colors.Rgb(196, 202, 214);
+        var steelDark = Colors.Rgb(128, 136, 152);
+        var wood = Colors.Rgb(140, 96, 56);
+        var leather = Colors.Rgb(150, 104, 62);
+        var leatherDark = Colors.Rgb(110, 74, 42);
+        var gold = Colors.Rgb(226, 186, 88);
+        var glass = Colors.Rgb(206, 226, 240);
+
+        switch (key)
+        {
+            case ItemIconKey.Sword:
+                c.FillRect(7, 1, 2, 9, steel);          // blade
+                c.FillRect(6, 2, 1, 7, steelDark);
+                c.FillRect(4, 10, 8, 2, gold);          // crossguard
+                c.FillRect(7, 12, 2, 3, wood);          // grip
+                c.FillRect(6, 14, 4, 1, gold);          // pommel
+                break;
+
+            case ItemIconKey.Wand:
+                c.FillRect(7, 5, 2, 10, wood);
+                c.FillCircle(8, 3, 3.2, Colors.Rgb(120, 170, 232));
+                c.FillCircle(7, 2, 1.2, Colors.Rgb(214, 236, 255));
+                break;
+
+            case ItemIconKey.Shield:
+                c.FillRect(3, 2, 10, 7, steelDark);
+                c.FillEllipse(8, 9, 5, 5, steelDark);
+                c.FillRect(4, 3, 8, 6, steel);
+                c.FillEllipse(8, 9, 4, 4, steel);
+                c.FillCircle(8, 7, 1.8, gold);
+                break;
+
+            case ItemIconKey.Armor:
+                // Shoulders sit a row above the torso and the collar is cut out of it, so the silhouette
+                // reads as something worn rather than as a barrel.
+                c.FillRect(2, 4, 12, 4, leatherDark);   // shoulders
+                c.FillRect(4, 4, 8, 9, leather);        // torso
+                c.FillRect(6, 3, 4, 3, Colors.Rgb(0, 0, 0, 0));  // collar opening
+                c.FillRect(7, 7, 2, 6, leatherDark);    // lacing
+                c.FillRect(4, 12, 8, 1, leatherDark);   // hem
+                break;
+
+            case ItemIconKey.Helmet:
+                c.FillEllipse(8, 7, 5.2, 5.2, leather);
+                c.FillRect(3, 7, 10, 4, leather);
+                c.FillRect(3, 8, 10, 2, leatherDark);   // brow band
+                break;
+
+            case ItemIconKey.Gauntlet:
+                // A mitt seen palm-on: four fingers, a thumb standing out to one side, and a banded cuff.
+                c.FillRect(5, 2, 7, 9, leather);        // hand
+                c.FillRect(6, 2, 1, 4, leatherDark);    // finger seams
+                c.FillRect(8, 2, 1, 4, leatherDark);
+                c.FillRect(10, 2, 1, 4, leatherDark);
+                c.FillRect(2, 6, 3, 4, leather);        // thumb
+                c.FillRect(4, 11, 9, 3, leatherDark);   // cuff
+                c.FillRect(4, 12, 9, 1, leather);
+                break;
+
+            case ItemIconKey.Shoes:
+                c.FillRect(4, 5, 4, 6, leather);        // ankle
+                c.FillRect(4, 10, 9, 3, leather);       // foot
+                c.FillRect(4, 12, 9, 1, leatherDark);   // sole
+                break;
+
+            case ItemIconKey.Bag:
+                c.FillEllipse(8, 10, 5.4, 4.6, leather);
+                c.FillRect(5, 4, 6, 4, leatherDark);    // neck
+                c.FillRect(4, 6, 8, 1, gold);           // drawstring
+                break;
+
+            case ItemIconKey.Herb:
+                c.FillRect(7, 6, 2, 9, Colors.Rgb(84, 128, 62));
+                c.FillEllipse(4, 7, 3.2, 2.2, Colors.Rgb(116, 190, 88));
+                c.FillEllipse(11, 6, 3.2, 2.2, Colors.Rgb(116, 190, 88));
+                c.FillEllipse(8, 3, 2.6, 2.6, Colors.Rgb(140, 210, 104));
+                break;
+
+            case ItemIconKey.Antidote:
+                // The same sprig, but blue-green and with a berry, so it never reads as a plain herb.
+                c.FillRect(7, 6, 2, 9, Colors.Rgb(62, 112, 106));
+                c.FillEllipse(4, 7, 3.2, 2.2, Colors.Rgb(84, 176, 160));
+                c.FillEllipse(11, 6, 3.2, 2.2, Colors.Rgb(84, 176, 160));
+                c.FillCircle(8, 3, 2.4, Colors.Rgb(150, 120, 210));
+                break;
+
+            case ItemIconKey.HpPotion:
+            case ItemIconKey.MpPotion:
+            {
+                var liquid = key == ItemIconKey.HpPotion
+                    ? Colors.Rgb(214, 72, 84)
+                    : Colors.Rgb(78, 122, 220);
+                c.FillRect(6, 1, 4, 3, Colors.Rgb(150, 110, 70));   // cork
+                c.FillRect(6, 4, 4, 2, glass);                       // neck
+                c.FillEllipse(8, 10, 4.6, 4.6, glass);               // body
+                c.FillEllipse(8, 11, 3.4, 3.2, liquid);              // contents
+                c.FillCircle(6, 8, 0.9, Colors.White);               // highlight
+                break;
+            }
+
+            case ItemIconKey.Scroll:
+                c.FillRect(3, 4, 10, 8, Colors.Rgb(230, 220, 190));
+                c.FillRect(3, 3, 10, 2, Colors.Rgb(180, 165, 120));
+                c.FillRect(3, 11, 10, 2, Colors.Rgb(180, 165, 120));
+                c.FillRect(5, 7, 6, 1, Colors.Rgb(150, 120, 90));
+                c.FillRect(5, 9, 4, 1, Colors.Rgb(150, 120, 90));
+                break;
+
+            case ItemIconKey.Map:
+                c.FillRect(2, 3, 12, 10, Colors.Rgb(226, 212, 172));
+                c.FillRect(2, 3, 12, 1, Colors.Rgb(180, 162, 120));
+                c.FillRect(2, 12, 12, 1, Colors.Rgb(180, 162, 120));
+                c.FillRect(5, 6, 6, 1, Colors.Rgb(140, 120, 88));
+                c.FillRect(5, 9, 6, 1, Colors.Rgb(140, 120, 88));
+                c.FillRect(10, 4, 1, 8, Colors.Rgb(196, 178, 138));
+                c.FillCircle(11, 10, 1.2, Colors.Rgb(198, 74, 62));   // the X
+                break;
+
+            case ItemIconKey.Firecracker:
+            {
+                // A bundle of red tubes with a lit fuse — the spark is what says "about to go off".
+                var paper = Colors.Rgb(206, 62, 54);
+                var paperDark = Colors.Rgb(154, 40, 36);
+                c.FillRect(4, 6, 3, 9, paper);
+                c.FillRect(7, 5, 3, 10, paperDark);
+                c.FillRect(10, 6, 3, 9, paper);
+                c.FillRect(4, 9, 9, 1, gold);           // binding
+                c.FillRect(8, 2, 1, 3, Colors.Rgb(120, 100, 70));  // fuse
+                c.FillCircle(9, 1, 1.6, Colors.Rgb(252, 214, 96)); // spark
+                break;
+            }
+
+            case ItemIconKey.Caltrops:
+            {
+                // Three spikes: whichever way it lands, one point is always up.
+                void Spike(int cx2, int cy2)
+                {
+                    c.FillRect(cx2, cy2 - 3, 1, 4, steel);
+                    c.FillRect(cx2 - 2, cy2, 5, 1, steel);
+                    c.FillRect(cx2 - 1, cy2 + 1, 1, 2, steelDark);
+                    c.FillRect(cx2 + 1, cy2 + 1, 1, 2, steelDark);
+                }
+                Spike(4, 7);
+                Spike(11, 6);
+                Spike(8, 12);
+                break;
+            }
+
+            default:
+                c.FillRect(4, 4, 8, 8, steelDark);
+                c.FillRect(5, 5, 6, 6, steel);
+                break;
+        }
+
+        c.AddOutline(Colors.Rgb(26, 22, 20));
+        return c;
+    }
+
+    /// <summary>A coin, for the gold line of a loot list.</summary>
+    private static PixelCanvas BuildGoldIcon()
+    {
+        var c = new PixelCanvas(ItemIconSize, ItemIconSize);
+        c.FillCircle(8, 8, 6.2, Colors.Rgb(168, 124, 40));
+        c.FillCircle(8, 8, 5.2, Colors.Rgb(232, 194, 90));
+        c.FillCircle(8, 8, 3.6, Colors.Rgb(206, 160, 60));
+        c.FillCircle(6, 6, 1.4, Colors.Rgb(252, 234, 168));
+        c.AddOutline(Colors.Rgb(26, 22, 20));
         return c;
     }
 

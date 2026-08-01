@@ -9,7 +9,20 @@ namespace SlimeDungeon.Domain;
 /// </summary>
 public enum EquipSlot { RightHand, LeftHand, Arm, Body, Head, Feet, Item1, Item2 }
 
-public enum ItemCategory { Weapon, Shield, Armor, Helmet, Gauntlet, Shoes, Bag, Herb, Antidote, Potion, Scroll, FullMapReveal }
+/// <summary>
+/// Serialised as integers in existing saves, so entries may only ever be appended — inserting one would turn
+/// every saved herb into a helmet.
+/// </summary>
+public enum ItemCategory
+{
+    Weapon, Shield, Armor, Helmet, Gauntlet, Shoes, Bag, Herb, Antidote, Potion, Scroll, FullMapReveal,
+
+    /// <summary>Thrown, bursts, burns the whole pack.</summary>
+    Firecracker,
+
+    /// <summary>Scattered underfoot: hurts everything standing on it and slows what survives.</summary>
+    Caltrops,
+}
 
 public enum WeaponKind { Sword, Wand }
 
@@ -63,7 +76,12 @@ public sealed class Item
     /// and in exchange a readied item is off the bag's books, freeing a slot for loot.
     /// </summary>
     [JsonIgnore]
-    public bool IsPocketable => Category is ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote;
+    public bool IsPocketable => Category is ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote
+        or ItemCategory.Firecracker or ItemCategory.Caltrops;
+
+    /// <summary>Thrown at the enemy rather than used on yourself — the offensive half of the item slots.</summary>
+    [JsonIgnore]
+    public bool IsThrowable => Category is ItemCategory.Firecracker or ItemCategory.Caltrops;
 
     /// <summary>
     /// True for anything the player can wear or carry in a slot of its own — body gear, a readied consumable,
@@ -81,7 +99,8 @@ public sealed class Item
         ItemCategory.Helmet => slot == EquipSlot.Head,
         ItemCategory.Gauntlet => slot == EquipSlot.Arm,
         ItemCategory.Shoes => slot == EquipSlot.Feet,
-        ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote =>
+        ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote
+            or ItemCategory.Firecracker or ItemCategory.Caltrops =>
             slot is EquipSlot.Item1 or EquipSlot.Item2,
         _ => false,
     };

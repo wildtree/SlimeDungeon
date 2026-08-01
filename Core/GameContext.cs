@@ -18,4 +18,11 @@ public sealed class GameContext
 
     public bool ShowInventory;
     public bool ShowKillLog;
+
+    /// <summary>
+    /// Set by the dungeon screen while a dungeon is being explored, so that the inventory overlay — which
+    /// knows nothing about dungeon sessions — can still make a map scroll do its job. Null anywhere else,
+    /// which is exactly how the overlay knows there is no map to reveal.
+    /// </summary>
+    public Action? RevealFullMap;
 }

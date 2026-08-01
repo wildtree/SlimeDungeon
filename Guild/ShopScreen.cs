@@ -29,6 +29,15 @@ public sealed class ShopScreen : IScreen
             () => ItemFactory.CreateHerb(Rank.H),
             () => ItemFactory.CreateAntidoteHerb(Rank.H),
         };
+
+        // Throwables are stocked across the same rank band as the gear, because unlike a herb their usefulness
+        // is pinned to the rank of what you are fighting — a rank-H firecracker is no help in a rank-D dungeon.
+        foreach (var rank in ShopEquipmentRanks)
+        {
+            list.Add(() => ItemFactory.CreateFirecracker(rank));
+            list.Add(() => ItemFactory.CreateCaltrops(rank));
+        }
+
         foreach (var rank in ShopEquipmentRanks)
         {
             list.Add(() => ItemFactory.CreateWeapon(rank, WeaponKind.Sword));

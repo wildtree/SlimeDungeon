@@ -68,6 +68,35 @@ public static class ItemFactory
             Value = (int)rank * (int)rank * 10,
         };
 
+    /// <summary>
+    /// A firecracker: readied in an item slot and thrown at the whole pack. It hits at its own rank on the
+    /// same ladder everything else uses, so a rank-R firecracker clears a group of rank-R slimes outright —
+    /// paid for by being consumed, by costing gold, and by occupying one of only two item slots. It carries
+    /// Fire, so the elemental matchup moves it up or down a rank just as a spell would.
+    /// </summary>
+    public static Item CreateFirecracker(Rank rank) =>
+        new()
+        {
+            Name = $"爆竹({rank.Label()})",
+            Category = ItemCategory.Firecracker,
+            Rank = rank,
+            Value = (int)rank * (int)rank * 6,
+        };
+
+    /// <summary>
+    /// Caltrops: weaker than a firecracker by a full rank and unable to finish anything of their own rank, but
+    /// elementless (so never at a disadvantage) and they halve what survives them — the control option next to
+    /// the firecracker's burst.
+    /// </summary>
+    public static Item CreateCaltrops(Rank rank) =>
+        new()
+        {
+            Name = $"まきびし({rank.Label()})",
+            Category = ItemCategory.Caltrops,
+            Rank = rank,
+            Value = (int)rank * (int)rank * 4,
+        };
+
     public static Item CreateScroll(Rank rank, SpellId spell) =>
         new() { Name = $"スクロール({SpellDefinitions.NameOf(spell)}・{rank.Label()})", Category = ItemCategory.Scroll, Rank = rank, SpellTaught = spell, Value = (int)rank * 20 };
 

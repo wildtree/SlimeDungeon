@@ -244,9 +244,76 @@ public sealed class CombatEncounter
                 AddLog(failMsg);
                 return new ActionResult(ActionOutcome.NoEffect, 0, failMsg);
             }
+            case ItemCategory.Firecracker:
+            case ItemCategory.Caltrops:
+                return ThrowAtPack(item);
+
             default:
                 return new ActionResult(ActionOutcome.NoEffect, 0, "使えない");
         }
+    }
+
+    /// <summary>
+    /// Throws a firecracker or scatters caltrops over the whole pack. Unlike a spell these never fizzle and
+    /// never land a critical — being reliable is what a consumable buys you for its gold, where magic is free
+    /// to re-cast but can waste its MP on a bad roll.
+    /// </summary>
+    private ActionResult ThrowAtPack(Item item)
+    {
+        var isFirecracker = item.Category == ItemCategory.Firecracker;
+        var targets = AliveEnemies;
+
+        AddLog(isFirecracker
+            ? $"{item.Name}を投げつけた！"
+            : $"{item.Name}をばらまいた！");
+        RemoveOneFromBag(item);
+
+        var total = 0;
+        foreach (var enemy in targets)
+        {
+            // Steel slides off a white slime and so do spikes — both are simply things with points on them.
+            // A firecracker is a burst of fire, which is another matter entirely.
+            if (enemy.IsWhite && !isFirecracker)
+            {
+                AddLog($"  {enemy.DisplayLabel}には効かない");
+                continue;
+            }
+
+            // Firecrackers carry Fire and so ride the elemental matchup; caltrops carry nothing, which makes
+            // them the dependable choice against a colour your magic is weak into.
+            var steps = 0;
+            if (isFirecracker)
+            {
+                var vsMonster = Domain.ElementExtensions.GetMatchup(Element.Fire, ElementForDefense(enemy));
+                steps = MatchupSteps(CombineWithDungeon(vsMonster, Element.Fire));
+            }
+
+            var effectiveRank = (int)item.Rank + steps - (isFirecracker ? 0 : 1);
+            var dmg = Math.Max(0, CombatMath.AttackDamage(effectiveRank, 0) - enemy.Def);
+            ApplyDamage(enemy, dmg);
+            total += dmg;
+
+            var note = isFirecracker
+                ? MatchupNote(CombineWithDungeon(
+                    Domain.ElementExtensions.GetMatchup(Element.Fire, ElementForDefense(enemy)), Element.Fire))
+                : "";
+            AddLog($"  {enemy.DisplayLabel}に{dmg}のダメージ{note}");
+
+            // Caltrops leave the ground unusable: whatever walks out of them is slowed for the rest of the fight.
+            if (!isFirecracker && !enemy.Stats.IsDead)
+            {
+                var before = enemy.Stats.Agl;
+                enemy.Stats.Agl = Math.Max(1, before / 2);
+                if (enemy.Stats.Agl < before)
+                    AddLog($"  {enemy.DisplayLabel}の動きが鈍った");
+            }
+        }
+
+        foreach (var enemy in targets.Where(e => e.IsWhite && e.IsEngaged).ToList())
+            TryWhiteCounter(enemy);
+
+        CheckVictory();
+        return new ActionResult(ActionOutcome.Hit, total, $"{item.Name}で{targets.Count}体に合計{total}のダメージ");
     }
 
     public ActionResult PlayerFlee()

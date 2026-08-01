@@ -19,10 +19,28 @@ public sealed class DungeonScreen : IScreen
     private bool _spellMenuOpen;
     private int _spellCursor;
 
+    /// <summary>The haul from the chest just opened, held while its dialog is up. Null when none is showing.</summary>
+    private (int Gold, List<Item> Items)? _chestHaul;
+
     public DungeonScreen(DungeonMap map, IScreen guildScreen)
     {
         _session = new DungeonSession(map);
         _guildScreen = guildScreen;
+    }
+
+    /// <summary>
+    /// Publishes the map-reveal action for as long as this screen is the one being explored, so a map scroll
+    /// can be used from the inventory like any other consumable. Combat swaps this screen out and back, which
+    /// tears the hook down and rebuilds it — the scroll is correctly unusable while a fight is on.
+    /// </summary>
+    public void OnEnter(GameContext ctx) => ctx.RevealFullMap = RevealMap;
+
+    public void OnExit(GameContext ctx) => ctx.RevealFullMap = null;
+
+    private void RevealMap()
+    {
+        _session.FullMapRevealTimer = DungeonSession.FullMapRevealSeconds;
+        _session.ShowMessage("ダンジョン全体が見える！");
     }
 
     public void Update(GameContext ctx, float dt)
@@ -39,6 +57,14 @@ public sealed class DungeonScreen : IScreen
 
         if (_session.FullMapRevealTimer > 0)
             _session.FullMapRevealTimer = Math.Max(0, _session.FullMapRevealTimer - dt);
+
+        // The chest dialog is modal: nothing moves, and no slime takes a step, until it is acknowledged.
+        if (_chestHaul is not null)
+        {
+            if (MenuNav.Confirmed(input) || input.WasPressed(SDL.Keycode.Escape))
+                _chestHaul = null;
+            return;
+        }
 
         if (UpdateSlimes(ctx, dt))
             return;
@@ -63,14 +89,15 @@ public sealed class DungeonScreen : IScreen
             return;
         }
 
+        // Kept as a shortcut, but the scroll is now usable from the inventory as well — it used to be reachable
+        // only through this key, which nothing on screen mentions, while the item screen offered only "捨てる".
         if (input.WasPressed(SDL.Keycode.M))
         {
-            var reveal = player.Bag.FirstOrDefault(i => i.Category == ItemCategory.FullMapReveal);
+            var reveal = player.CarriedItems.FirstOrDefault(i => i.Category == ItemCategory.FullMapReveal);
             if (reveal is not null)
             {
-                player.Bag.Remove(reveal);
-                _session.FullMapRevealTimer = DungeonSession.FullMapRevealSeconds;
-                _session.ShowMessage("ダンジョン全体が見える！");
+                player.ConsumeOne(reveal);
+                RevealMap();
             }
         }
 
@@ -356,20 +383,17 @@ public sealed class DungeonScreen : IScreen
 
         // The bag-has-room check happens before OpenChest is ever called (see BeginMove), so every
         // item here is guaranteed to fit.
-        var parts = new List<string>();
-        if (chest.Gold > 0)
-        {
-            player.EarnGold(chest.Gold);
-            parts.Add($"{chest.Gold}G");
-        }
+        var gold = chest.Gold;
+        if (gold > 0)
+            player.EarnGold(gold);
 
-        foreach (var item in chest.Items)
-        {
+        var taken = new List<Item>(chest.Items);
+        foreach (var item in taken)
             player.Bag.Add(item);
-            parts.Add(item.Name);
-        }
 
-        _session.ShowMessage(parts.Count > 0 ? $"宝箱: {string.Join(", ", parts)}" : "宝箱は空だった");
+        // Shown as a dialog rather than a line in the corner: this is the payoff for the whole detour, and a
+        // chest that turns out to be empty deserves to be read as clearly as one that is not.
+        _chestHaul = (gold, taken);
 
         chest.Gold = 0;
         chest.Items.Clear();
@@ -426,6 +450,10 @@ public sealed class DungeonScreen : IScreen
 
         if (_spellMenuOpen)
             DrawSpellMenu(ctx);
+
+        // Modal, so it draws over the status panel as well as the map.
+        if (_chestHaul is { } haul)
+            ChestPopup.Draw(ctx, haul.Gold, haul.Items);
     }
 
     private void DrawBorder(Renderer r)
