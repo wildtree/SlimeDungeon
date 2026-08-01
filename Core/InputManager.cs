@@ -132,6 +132,54 @@ public sealed class InputManager
             case SDL.EventType.GamepadButtonUp:
                 _padDown.Remove((SDL.GamepadButton)ev.GButton.Button);
                 break;
+            
+            case SDL.EventType.GamepadAxisMotion:
+                // The game doesn't care about the raw axis values, only the stick direction, so ignore this.
+                var axis = (SDL.GamepadAxis)ev.GAxis.Axis;
+                var value = ev.GAxis.Value;
+                switch (axis)
+                {
+                    case SDL.GamepadAxis.LeftX:
+                        if (MathF.Abs(value) < StickDeadZone)
+                        {
+                            _padDown.Remove(DpadLeft);
+                            _padDown.Remove(DpadRight);
+                        }
+                        else
+                        {
+                            if (MathF.Sign(value) < 0)
+                            {
+                                _padDown.Add(DpadLeft);
+                            }
+                            else
+                            {
+                                _padDown.Add(DpadRight);
+                            }
+                        }
+                        break;
+                    case SDL.GamepadAxis.LeftY:
+                        if (MathF.Abs(value) < StickDeadZone)
+                        {
+                            _padDown.Remove(DpadUp);
+                            _padDown.Remove(DpadDown);
+                        }
+                        else
+                        {
+                            if (MathF.Sign(value) < 0)
+                            {
+                                _padDown.Add(DpadUp);
+                            }
+                            else
+                            {
+                                _padDown.Add(DpadDown);
+                            }
+                        }
+                        break;
+                    default:
+                        // Other axes are not used by the game, so ignore them.
+                        break;
+                }
+                break;
         }
     }
 
