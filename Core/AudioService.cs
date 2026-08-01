@@ -20,6 +20,28 @@ public sealed class AudioService : IDisposable
     private readonly Dictionary<SoundId, byte[]> _bytes = new();
     private int _next;
 
+    /// <summary>
+    /// Music gets a stream of its own rather than sharing the effects pool: it needs its own volume, and it
+    /// has to be topped up continuously to loop, which would fight with effects for a shared voice.
+    /// </summary>
+    private IntPtr _musicStream;
+
+    private readonly Dictionary<MusicId, byte[]> _musicBytes = new();
+    private MusicId? _nowPlaying;
+
+    /// <summary>
+    /// Background music sits well under the effects so it never competes with a hit or a fanfare. At 0.32 the
+    /// measured loudness of a track was within a few percent of a weapon hit's, which is not background music
+    /// — this puts it roughly 10dB below the effects, quiet enough to notice only when listening for it.
+    /// </summary>
+    private const float MusicGain = 0.2f;
+
+    /// <summary>
+    /// Refill once the queue drops below this many seconds. Comfortably longer than a frame's worth of jitter
+    /// and shorter than the track, so the next copy is always queued before the current one runs dry.
+    /// </summary>
+    private const float RefillBelowSeconds = 3f;
+
     public bool Available { get; }
 
     public AudioService()
@@ -56,7 +78,56 @@ public sealed class AudioService : IDisposable
             return;
         }
 
+        // Music is generated at half the effects' sample rate; SDL converts it up to whatever the device runs at.
+        var musicSpec = new SDL.AudioSpec
+        {
+            Format = SDL.AudioFormat.AudioS16LE,
+            Channels = 1,
+            Freq = MusicBank.SampleRate,
+        };
+        _musicStream = SDL.OpenAudioDeviceStream(SDL.AudioDeviceDefaultPlayback, in musicSpec, null, IntPtr.Zero);
+        if (_musicStream != IntPtr.Zero)
+        {
+            SDL.SetAudioStreamGain(_musicStream, MusicGain);
+            SDL.ResumeAudioStreamDevice(_musicStream);
+            foreach (var (id, samples) in MusicBank.BuildAll())
+                _musicBytes[id] = ToBytes(samples);
+        }
+
         Available = true;
+    }
+
+    /// <summary>
+    /// Switches the background track. Asking for the one already playing does nothing, so screens are free to
+    /// call this every frame — which is how moving between the guild and its various counters stays seamless.
+    /// Passing null fades the music out by simply letting the queue drain.
+    /// </summary>
+    public void PlayMusic(MusicId? id)
+    {
+        if (!Available || _musicStream == IntPtr.Zero || _nowPlaying == id)
+            return;
+
+        _nowPlaying = id;
+        SDL.ClearAudioStream(_musicStream);
+        if (id is { } wanted && _musicBytes.TryGetValue(wanted, out var data))
+            SDL.PutAudioStreamData(_musicStream, data, data.Length);
+    }
+
+    /// <summary>
+    /// Keeps the current track looping. Call once a frame: when the queued audio runs low another copy of the
+    /// track is appended, which joins onto the end of what is already queued without a gap.
+    /// </summary>
+    public void UpdateMusic()
+    {
+        if (!Available || _musicStream == IntPtr.Zero || _nowPlaying is not { } id)
+            return;
+        if (!_musicBytes.TryGetValue(id, out var data))
+            return;
+
+        var queuedBytes = SDL.GetAudioStreamQueued(_musicStream);
+        var queuedSeconds = queuedBytes / (float)(MusicBank.SampleRate * sizeof(short));
+        if (queuedSeconds < RefillBelowSeconds)
+            SDL.PutAudioStreamData(_musicStream, data, data.Length);
     }
 
     /// <summary>
@@ -100,6 +171,12 @@ public sealed class AudioService : IDisposable
 
     public void Dispose()
     {
+        if (_musicStream != IntPtr.Zero)
+        {
+            SDL.DestroyAudioStream(_musicStream);
+            _musicStream = IntPtr.Zero;
+        }
+
         foreach (var stream in _streams)
             SDL.DestroyAudioStream(stream);
         _streams.Clear();

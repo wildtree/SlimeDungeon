@@ -61,6 +61,13 @@ while (!input.QuitRequested)
 
     screens.ApplyPendingTransition(ctx);
 
+    // Which track plays is decided here from whichever screen is up, rather than by each screen announcing
+    // itself. The guild has half a dozen counters hanging off it and the dungeon hands off to combat and
+    // back; deriving it centrally means every one of those is covered, and moving between them is seamless
+    // because asking for the track already playing does nothing.
+    audio.PlayMusic(MusicForScreen(screens.Current));
+    audio.UpdateMusic();
+
     // Snapshot overlay state from *before* this frame's key presses are applied, so the same
     // WasPressed(I)/WasPressed(S) edge that opens an overlay can't also reach its close-check below.
     var overlayActiveBeforeInput = ctx.ShowInventory || ctx.ShowKillLog;
@@ -85,6 +92,18 @@ while (!input.QuitRequested)
 
     renderer.Present();
 }
+
+static MusicId? MusicForScreen(IScreen screen) => screen switch
+{
+    TitleScreen => MusicId.Title,
+    // Combat happens inside a dungeon trip, so the dungeon's music carries straight through it — cutting to
+    // silence for every slime would be far more jarring than letting it run under the fight.
+    SlimeDungeon.Dungeon.DungeonScreen or SlimeDungeon.Combat.CombatScreen => MusicId.Dungeon,
+    // Silence when a character has died. Anything cheerful over that screen would be grotesque.
+    GameOverScreen => null,
+    // Everything else is the guild and its counters.
+    _ => MusicId.Guild,
+};
 
 SDL.StopTextInput(window);
 SDL.DestroyRenderer(rendererHandle);
