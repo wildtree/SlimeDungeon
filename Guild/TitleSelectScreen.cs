@@ -45,8 +45,9 @@ public sealed class TitleSelectScreen : IScreen
         var list = BuildList(player);
         _cursor = MenuNav.Move(input, _cursor, list.Count);
 
-        // Clearing the card entirely is a legitimate choice, so offer it on its own key.
-        if (input.WasPressed(SDL.Keycode.X))
+        // Clearing the card is a legitimate choice, but it used to be bound to X — which is now the confirm
+        // button. It moved onto the cancel-adjacent key so nothing collides, and a gamepad can still reach it.
+        if (input.WasPressed(SDL.Keycode.D) || input.WasPressed(SDL.GamepadButton.North))
         {
             player.DisplayedTitle = null;
             _message = "称号を外しました";

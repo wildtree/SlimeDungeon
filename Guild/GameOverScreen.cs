@@ -2,6 +2,7 @@ using SDL3;
 using SlimeDungeon.Core;
 using SlimeDungeon.Data;
 using SlimeDungeon.Domain;
+using SlimeDungeon.UI;
 
 namespace SlimeDungeon.Guild;
 
@@ -22,7 +23,7 @@ public sealed class GameOverScreen : IScreen
 
     public void Update(GameContext ctx, float dt)
     {
-        if (ctx.Input.WasPressed(SDL.Keycode.Return) || ctx.Input.WasPressed(SDL.Keycode.Space))
+        if (MenuNav.Confirmed(ctx.Input))
         {
             ctx.Player = null;
             ctx.Screens.ChangeTo(new TitleScreen());

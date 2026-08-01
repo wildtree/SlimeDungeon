@@ -69,14 +69,11 @@ while (!input.QuitRequested)
     audio.PlayMusic(wantedMusic, musicDelay);
     audio.UpdateMusic(dt);
 
-    // Snapshot overlay state from *before* this frame's key presses are applied, so the same
-    // WasPressed(I)/WasPressed(S) edge that opens an overlay can't also reach its close-check below.
+    // Snapshot overlay state from *before* this frame's key presses are applied, so the same keypress that
+    // opens an overlay from a screen's menu can't also reach that overlay's close-check below. The overlays
+    // are no longer bound to their own hotkeys — they are entries on the menu now, which is what freed S to
+    // be the menu button itself.
     var overlayActiveBeforeInput = ctx.ShowInventory || ctx.ShowKillLog;
-    if (!overlayActiveBeforeInput && ctx.Player is not null)
-    {
-        if (input.WasPressed(SDL.Keycode.I)) ctx.ShowInventory = true;
-        else if (input.WasPressed(SDL.Keycode.S)) ctx.ShowKillLog = true;
-    }
 
     if (overlayActiveBeforeInput && ctx.ShowInventory)
         inventoryOverlay.Update(ctx, dt);

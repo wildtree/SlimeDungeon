@@ -177,7 +177,12 @@ public static class SaveManager
     {
         Directory.CreateDirectory(SavesDir);
         var history = LoadHistory();
-        history.Add(new HistoryEntry(player.Name, player.Rank, player.Level, player.DaysSurvived, player.KillCounts));
+        history.Add(new HistoryEntry(player.Name, player.Rank, player.Level, player.DaysSurvived, player.KillCounts)
+        {
+            Gender = player.Gender,
+            StartDay = player.StartDay,
+            Gold = player.Gold,
+        });
         File.WriteAllText(HistoryPath, JsonSerializer.Serialize(history, Options));
     }
 

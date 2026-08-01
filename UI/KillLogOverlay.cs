@@ -29,7 +29,7 @@ public sealed class KillLogOverlay
 
     public void Update(GameContext ctx, float dt)
     {
-        if (ctx.Input.WasPressed(SDL.Keycode.Escape) || ctx.Input.WasPressed(SDL.Keycode.S))
+        if (MenuNav.Cancelled(ctx.Input) || MenuNav.MenuRequested(ctx.Input))
             ctx.ShowKillLog = false;
     }
 

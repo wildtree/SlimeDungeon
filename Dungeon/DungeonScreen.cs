@@ -16,8 +16,14 @@ public sealed class DungeonScreen : IScreen
     private readonly DungeonSession _session;
     private readonly IScreen _guildScreen;
     private (int Dx, int Dy)? _pendingContinue;
-    private bool _spellMenuOpen;
-    private int _spellCursor;
+    private readonly FieldMagicMenu _magic = new();
+
+    /// <summary>The field menu: the same three entries the guild counter carries at its foot.</summary>
+    private enum MenuEntry { Inventory, KillLog, Magic }
+
+    private static readonly MenuEntry[] MenuEntries = [MenuEntry.Inventory, MenuEntry.KillLog, MenuEntry.Magic];
+    private bool _menuOpen;
+    private int _menuCursor;
 
     /// <summary>The haul from the chest just opened, held while its dialog is up. Null when none is showing.</summary>
     private (int Gold, List<Item> Items)? _chestHaul;
@@ -61,7 +67,7 @@ public sealed class DungeonScreen : IScreen
         // The chest dialog is modal: nothing moves, and no slime takes a step, until it is acknowledged.
         if (_chestHaul is not null)
         {
-            if (MenuNav.Confirmed(input) || input.WasPressed(SDL.Keycode.Escape))
+            if (MenuNav.Confirmed(input) || MenuNav.Cancelled(input))
                 _chestHaul = null;
             return;
         }
@@ -69,23 +75,25 @@ public sealed class DungeonScreen : IScreen
         if (UpdateSlimes(ctx, dt))
             return;
 
-        if (_spellMenuOpen)
+        if (_magic.IsOpen)
         {
-            UpdateSpellMenu(ctx);
+            if (_magic.Update(ctx) is { } spellMessage)
+                _session.ShowMessage(spellMessage);
             return;
         }
 
-        if (input.WasPressed(SDL.Keycode.C))
+        if (_menuOpen)
         {
-            if (FieldUsableSpells(player).Count > 0)
-            {
-                _spellMenuOpen = true;
-                _spellCursor = 0;
-            }
-            else
-            {
-                _session.ShowMessage("使えるまほうがない");
-            }
+            UpdateMenu(ctx);
+            return;
+        }
+
+        // Reachable only out here: the chest dialog above and combat (a different screen entirely) both
+        // return before this line, which is what keeps the menu shut while either is up.
+        if (MenuNav.MenuRequested(input))
+        {
+            _menuOpen = true;
+            _menuCursor = 0;
             return;
         }
 
@@ -101,7 +109,7 @@ public sealed class DungeonScreen : IScreen
             }
         }
 
-        if (input.WasPressed(SDL.Keycode.Space) && _session.IsOnStairs)
+        if (MenuNav.Confirmed(input) && _session.IsOnStairs)
         {
             player.DayCount++;
             ctx.Screens.ChangeTo(_guildScreen);
@@ -308,61 +316,66 @@ public sealed class DungeonScreen : IScreen
     }
 
     /// <summary>Spells usable outside of battle — currently just Heal (attack spells need a target, Cure has nothing to cure without an active battle's poison).</summary>
-    private static List<LearnedSpell> FieldUsableSpells(Player player) =>
-        player.KnownSpells.Where(s => SpellDefinitions.All[s.Id].Effect == SpellEffect.Heal).ToList();
-
-    private void UpdateSpellMenu(GameContext ctx)
+    private void UpdateMenu(GameContext ctx)
     {
-        var player = ctx.Player!;
         var input = ctx.Input;
-        var spells = FieldUsableSpells(player);
+        var player = ctx.Player!;
 
-        if (MenuNav.Cancelled(input) || spells.Count == 0)
+        if (MenuNav.Cancelled(input) || MenuNav.MenuRequested(input))
         {
-            _spellMenuOpen = false;
+            _menuOpen = false;
             return;
         }
 
-        _spellCursor = MenuNav.Move(input, _spellCursor, spells.Count);
-
+        _menuCursor = MenuNav.Move(input, _menuCursor, MenuEntries.Length);
         if (!MenuNav.Confirmed(input))
             return;
 
-        var spell = spells[_spellCursor];
-        var cost = SpellDefinitions.MpCost(spell.Rank);
-        if (player.Stats.Mp < cost)
+        switch (MenuEntries[_menuCursor])
         {
-            _session.ShowMessage("MPが足りない");
-            _spellMenuOpen = false;
-            return;
+            case MenuEntry.Inventory:
+                ctx.ShowInventory = true;
+                _menuOpen = false;
+                break;
+            case MenuEntry.KillLog:
+                ctx.ShowKillLog = true;
+                _menuOpen = false;
+                break;
+            case MenuEntry.Magic:
+                _menuOpen = false;
+                if (!_magic.TryOpen(player, out var reason))
+                    _session.ShowMessage(reason);
+                break;
         }
-
-        player.Stats.Mp -= cost;
-        player.Counters.SpellsCast++;
-        var amount = SpellDefinitions.HealAmount(spell.Rank, player.Stats.MaxHp);
-        player.Stats.Hp = Math.Min(player.Stats.MaxHp, player.Stats.Hp + amount);
-        _session.ShowMessage($"{SpellDefinitions.NameOf(spell.Id)}！ HPが{amount}回復した");
-        _spellMenuOpen = false;
     }
 
-    private void DrawSpellMenu(GameContext ctx)
+    private static string MenuLabel(MenuEntry entry) => entry switch
+    {
+        MenuEntry.Inventory => "アイテム",
+        MenuEntry.KillLog => "討伐記録",
+        _ => "まほう",
+    };
+
+    private void DrawMenu(GameContext ctx)
     {
         var r = ctx.Renderer;
-        var player = ctx.Player!;
-        var spells = FieldUsableSpells(player);
-        var labels = spells.Select(s => $"{SpellDefinitions.NameOf(s.Id)} (MP{SpellDefinitions.MpCost(s.Rank)})").ToArray();
-        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 12);
+        var labels = MenuEntries.Select(MenuLabel).ToArray();
+        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 13);
 
+        var w = maxWidth + 40;
+        var h = labels.Length * 22 + 30;
         var x = 12f;
-        var y = 300f;
-        var h = 20 * labels.Length + 20;
-        r.FillRect(x - 4, y - 16, maxWidth + 40, h, Colors.PanelBg);
-        r.DrawRect(x - 4, y - 16, maxWidth + 40, h, Colors.Border);
-        ctx.Fonts.DrawText(r.Handle, "まほう", x, y - 14, 10, Colors.Highlight);
+        var y = 396f - h;
+
+        r.FillRect(x + 3, y + 3, w, h, Colors.Rgb(8, 7, 10));
+        r.FillRect(x, y, w, h, Colors.PanelBg);
+        r.DrawRect(x, y, w, h, Colors.Border);
+        ctx.Fonts.DrawText(r.Handle, "メニュー", x + 10, y + 5, 10, Colors.Highlight);
 
         for (var i = 0; i < labels.Length; i++)
-            MenuNav.DrawRow(ctx, x, y + 6 + i * 20, maxWidth, 18, labels[i], 12, i == _spellCursor);
+            MenuNav.DrawRow(ctx, x + 14, y + 24 + i * 22, maxWidth, 19, labels[i], 13, i == _menuCursor);
     }
+
 
     private void OpenChest(GameContext ctx, Chest chest)
     {
@@ -448,8 +461,10 @@ public sealed class DungeonScreen : IScreen
         if (_session.FullMapRevealTimer > 0)
             ctx.Fonts.DrawText(r.Handle, $"全体表示 {_session.FullMapRevealTimer:0.0}s", 8, 4, 10, Colors.Highlight);
 
-        if (_spellMenuOpen)
-            DrawSpellMenu(ctx);
+        if (_menuOpen)
+            DrawMenu(ctx);
+        if (_magic.IsOpen)
+            _magic.Draw(ctx, 12, 240);
 
         // Modal, so it draws over the status panel as well as the map.
         if (_chestHaul is { } haul)

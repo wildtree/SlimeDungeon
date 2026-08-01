@@ -64,7 +64,7 @@ public sealed class InventoryOverlay
                 return;
         }
 
-        if (input.WasPressed(SDL.Keycode.Escape) || input.WasPressed(SDL.Keycode.I))
+        if (MenuNav.Cancelled(input) || input.WasPressed(SDL.Keycode.I))
         {
             ctx.ShowInventory = false;
             return;
@@ -148,7 +148,7 @@ public sealed class InventoryOverlay
 
     private void UpdateItemActionMenu(InputManager input, Player player)
     {
-        if (input.WasPressed(SDL.Keycode.Escape))
+        if (MenuNav.Cancelled(input))
         {
             _phase = Phase.List;
             _selectedItem = null;
@@ -369,7 +369,7 @@ public sealed class InventoryOverlay
 
     private void UpdateForgetSpell(InputManager input, Player player)
     {
-        if (input.WasPressed(SDL.Keycode.Escape))
+        if (MenuNav.Cancelled(input))
         {
             _phase = Phase.List;
             _pendingScroll = null;
@@ -393,7 +393,7 @@ public sealed class InventoryOverlay
     /// <summary>Every candidate slot is occupied: the player picks which one gets displaced.</summary>
     private void UpdateSlotSelect(InputManager input, Player player)
     {
-        if (input.WasPressed(SDL.Keycode.Escape))
+        if (MenuNav.Cancelled(input))
         {
             _phase = Phase.List;
             _pendingSlotItem = null;

@@ -13,6 +13,8 @@ public sealed class GuildScreen : IScreen
     private int _cursor;
     private string? _message;
     private List<TitleDefinition> _newTitles = new();
+    private bool _menuOpen;
+    private readonly FieldMagicMenu _magic = new();
 
     public void OnEnter(GameContext ctx)
     {
@@ -41,19 +43,39 @@ public sealed class GuildScreen : IScreen
     /// 10G per level keeps it cheap early on without staying trivial once stats have grown a lot.</summary>
     private static int HealCost(Player player) => player.Level * 10;
 
-    private static string[] BuildMenuLabels(Player player) =>
+    /// <summary>
+    /// What the counter offers. The last three are the same entries the dungeon menu carries, so the things
+    /// you reach for most — your pack, your record, a heal — are in the same place wherever you are.
+    /// </summary>
+    private enum Entry
+    {
+        Quest, Bounty, Shop, Potion, Dungeon, Heal, Titles, Records,
+        Inventory, KillLog, Magic,
+    }
+
+    private static Entry[] Entries =>
     [
-        "クエスト",
+        Entry.Quest, Entry.Bounty, Entry.Shop, Entry.Potion, Entry.Dungeon,
+        Entry.Heal, Entry.Titles, Entry.Records,
+        Entry.Inventory, Entry.KillLog, Entry.Magic,
+    ];
+
+    private static string Label(Entry entry, Player player) => entry switch
+    {
+        Entry.Quest => "クエスト",
         // The pending total is on the label itself: gold from slimes is only collected here now, so leaving it
         // unclaimed has to be visible from the hub rather than something you have to go and look for.
-        player.PendingBountyTotal > 0 ? $"討伐報酬 ({player.PendingBountyTotal}G)" : "討伐報酬",
-        "ショップ",
-        "ポーション調合",
-        "ダンジョンへ",
-        $"回復 ({HealCost(player)}G)",
-        "称号",
-        "討伐記録",
-    ];
+        Entry.Bounty => player.PendingBountyTotal > 0 ? $"討伐報酬 ({player.PendingBountyTotal}G)" : "討伐報酬",
+        Entry.Shop => "ショップ",
+        Entry.Potion => "ポーション調合",
+        Entry.Dungeon => "ダンジョンへ",
+        Entry.Heal => $"回復 ({HealCost(player)}G)",
+        Entry.Titles => "称号",
+        Entry.Records => "冒険者の記録",
+        Entry.Inventory => "アイテム",
+        Entry.KillLog => "討伐記録",
+        _ => "まほう",
+    };
 
     public void Update(GameContext ctx, float dt)
     {
@@ -68,22 +90,53 @@ public sealed class GuildScreen : IScreen
             return;
         }
 
-        var labels = BuildMenuLabels(player);
-        _cursor = MenuNav.Move(input, _cursor, labels.Length);
+        if (_magic.IsOpen)
+        {
+            if (_magic.Update(ctx) is { } spellMessage)
+                _message = spellMessage;
+            return;
+        }
+
+        // The counter is clear until asked for. The room is the thing worth looking at; the list of errands
+        // sat on top of it permanently for no reason other than that it always had.
+        if (!_menuOpen)
+        {
+            if (MenuNav.MenuRequested(input) || MenuNav.Confirmed(input))
+            {
+                _menuOpen = true;
+                _message = null;
+            }
+            return;
+        }
+
+        if (MenuNav.Cancelled(input) || MenuNav.MenuRequested(input))
+        {
+            _menuOpen = false;
+            return;
+        }
+
+        var entries = Entries;
+        _cursor = MenuNav.Move(input, _cursor, entries.Length);
 
         if (!MenuNav.Confirmed(input))
             return;
 
-        switch (_cursor)
+        switch (entries[_cursor])
         {
-            case 0: ctx.Screens.ChangeTo(new QuestBoardScreen()); break;
-            case 1: ctx.Screens.ChangeTo(new BountyScreen()); break;
-            case 2: ctx.Screens.ChangeTo(new ShopScreen()); break;
-            case 3: ctx.Screens.ChangeTo(new PotionCraftScreen()); break;
-            case 4: ctx.Screens.ChangeTo(new DungeonSelectScreen()); break;
-            case 5: HandleHeal(player); break;
-            case 6: ctx.Screens.ChangeTo(new TitleSelectScreen()); break;
-            case 7: ctx.ShowKillLog = true; break;
+            case Entry.Quest: ctx.Screens.ChangeTo(new QuestBoardScreen()); break;
+            case Entry.Bounty: ctx.Screens.ChangeTo(new BountyScreen()); break;
+            case Entry.Shop: ctx.Screens.ChangeTo(new ShopScreen()); break;
+            case Entry.Potion: ctx.Screens.ChangeTo(new PotionCraftScreen()); break;
+            case Entry.Dungeon: ctx.Screens.ChangeTo(new DungeonSelectScreen()); break;
+            case Entry.Heal: HandleHeal(player); break;
+            case Entry.Titles: ctx.Screens.ChangeTo(new TitleSelectScreen()); break;
+            case Entry.Records: ctx.Screens.ChangeTo(new RecordsScreen()); break;
+            case Entry.Inventory: ctx.ShowInventory = true; _menuOpen = false; break;
+            case Entry.KillLog: ctx.ShowKillLog = true; _menuOpen = false; break;
+            case Entry.Magic:
+                if (!_magic.TryOpen(player, out var reason))
+                    _message = reason;
+                break;
         }
     }
 
@@ -114,15 +167,32 @@ public sealed class GuildScreen : IScreen
         r.Clear(Colors.Rgb(24, 20, 16));
         var fonts = ctx.Fonts;
         var player = ctx.Player!;
-        var labels = BuildMenuLabels(player);
+        var labels = Entries.Select(e => Label(e, player)).ToArray();
 
         GuildRoom.Draw(ctx, player.DayCount);
+
+        if (!_menuOpen)
+        {
+            // Nothing over the room but the prompt to open the counter.
+            var prompt = $"[{MenuNav.MenuHint(ctx.Input)}] ご用件をどうぞ";
+            var (pw, _) = fonts.Measure(prompt, 12);
+            r.FillRect(10, 366, pw + 20, 22, Colors.Rgb(0, 0, 0, 150));
+            fonts.DrawText(r.Handle, prompt, 20, 370, 12, Colors.Highlight);
+
+            if (_message is not null)
+                DrawReceptionistSay(ctx, _message, 14f, 356f);
+
+            StatusPanel.Draw(ctx, 400, 0, 400);
+            if (_newTitles.Count > 0)
+                TitleAwardPopup.Draw(ctx, _newTitles);
+            return;
+        }
 
         // The command list as a sheet of guild business lying on the counter, rather than a dark panel floating
         // over the scene. Drawn at runtime rather than baked, because the other screens that share this
         // backdrop (registration, promotion) have no menu on the counter.
-        const float rowHeight = 23f;
-        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 13);
+        const float rowHeight = 20f;
+        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 12);
         var sheetX = 14f;
         var sheetW = Math.Max(168f, maxWidth + 34f);
         var sheetH = labels.Length * rowHeight + 34f;
@@ -151,7 +221,7 @@ public sealed class GuildScreen : IScreen
                 r.FillRect(sheetX + 6, y - 3, sheetW - 12, rowHeight - 2, Colors.Rgb(206, 168, 88));
                 r.FillRect(sheetX + 6, y - 3, 3, rowHeight - 2, Colors.Rgb(148, 106, 44));
             }
-            fonts.DrawText(r.Handle, labels[i], sheetX + 14, y, 13, ink);
+            fonts.DrawText(r.Handle, labels[i], sheetX + 14, y, 12, ink);
             y += rowHeight;
         }
 
@@ -159,6 +229,9 @@ public sealed class GuildScreen : IScreen
             DrawReceptionistSay(ctx, _message, sheetX, sheetY);
 
         StatusPanel.Draw(ctx, 400, 0, 400);
+
+        if (_magic.IsOpen)
+            _magic.Draw(ctx, 210, 150);
 
         if (_newTitles.Count > 0)
             TitleAwardPopup.Draw(ctx, _newTitles);

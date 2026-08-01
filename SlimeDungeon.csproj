@@ -16,6 +16,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Artwork lives here, in the project's own assets/ folder, and is copied to the output on build.
+         Nothing should ever be edited under bin/: that tree is regenerated, so anything dropped into it is
+         lost on the next rebuild. PreserveNewest means replacing a picture and building again is enough. -->
+    <Content Include="assets\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The .Native packages carry win/linux/osx (x64 and arm64) in one reference each, instead of the
          per-OS .Windows/.Linux/.macOS split which would need three references picked by RID. Note the native
          SDL3 they bundle is 3.4.2, a little behind the 3.4.12 managed bindings; the API this game uses is
@@ -24,6 +31,9 @@
     <PackageReference Include="SDL3-CS" Version="3.4.12.3" />
     <PackageReference Include="SDL3-CS.Native" Version="3.4.2" />
     <PackageReference Include="SDL3-CS.Native.TTF" Version="3.3.0" />
+    <!-- SDL_image, for the hand-drawn artwork that can be dropped into assets/. The managed bindings ship in
+         SDL3-CS itself; this package supplies the native libraries for every platform. -->
+    <PackageReference Include="SDL3-CS.Native.Image" Version="3.5.0" />
   </ItemGroup>
 
 </Project>

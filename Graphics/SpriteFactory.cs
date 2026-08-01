@@ -14,6 +14,9 @@ public sealed class SpriteFactory : IDisposable
 
     public const int GuildBackdropSize = 400;
 
+    /// <summary>Drop a 400x400 illustration here to replace the procedurally drawn guild room.</summary>
+    public const string GuildArtFile = "guild.png";
+
     public const int MenuBackdropWidth = 640;
     public const int MenuBackdropHeight = 400;
 
@@ -21,6 +24,13 @@ public sealed class SpriteFactory : IDisposable
     public IntPtr ChestOpen { get; private set; }
     public IntPtr FullMapItem { get; private set; }
     public IntPtr GuildBackdrop { get; private set; }
+
+    /// <summary>
+    /// True when the guild room is a loaded illustration rather than the procedural fallback. The overlaid
+    /// lettering (the carved sign, the date slate) is positioned against the procedural art's fixtures, so it
+    /// is suppressed when a painting has replaced them — a hand-drawn room draws its own signage.
+    /// </summary>
+    public bool GuildBackdropIsArtwork { get; private set; }
 
     /// <summary>A plain wood-panelled room, used behind every flat menu screen (shop, quest board, potion
     /// crafting, dungeon select, inventory/kill-log overlays) so they read as a room instead of a black void.</summary>
@@ -81,7 +91,18 @@ public sealed class SpriteFactory : IDisposable
         ChestClosed = Bake(renderer, BuildChest(open: false));
         ChestOpen = Bake(renderer, BuildChest(open: true));
         FullMapItem = Bake(renderer, BuildScrollItem());
-        GuildBackdrop = Bake(renderer, BuildGuildBackdrop());
+        // A painted guild room if one has been supplied, otherwise the one built from rectangles.
+        var guildArt = ArtLoader.TryLoad(renderer, GuildArtFile);
+        if (guildArt != IntPtr.Zero)
+        {
+            _allTextures.Add(guildArt);
+            GuildBackdrop = guildArt;
+            GuildBackdropIsArtwork = true;
+        }
+        else
+        {
+            GuildBackdrop = Bake(renderer, BuildGuildBackdrop());
+        }
         MenuBackdrop = Bake(renderer, BuildMenuBackdrop());
         TitleLogo = Bake(renderer, TitleArt.BuildLogo());
         TitleBackdrop = Bake(renderer, TitleArt.BuildBackdrop());

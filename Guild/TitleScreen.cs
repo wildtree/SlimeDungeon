@@ -2,6 +2,9 @@ using SDL3;
 using SlimeDungeon.Core;
 using SlimeDungeon.Data;
 using SlimeDungeon.Graphics;
+using SlimeDungeon.UI;
+
+
 
 namespace SlimeDungeon.Guild;
 
@@ -21,28 +24,46 @@ public sealed class TitleScreen : IScreen
     {
         _time += dt;
 
-        if (ctx.Input.WasPressed(SDL.Keycode.Escape))
-            ctx.Input.RequestQuit();
+        var input = ctx.Input;
 
-        if (SaveManager.HasSave)
+        // A cursor list rather than the old lettered shortcuts, so the title screen can be driven from a
+        // gamepad — which cannot press C or N — like everything else.
+        var options = Options();
+        _cursor = MenuNav.Move(input, _cursor, options.Length);
+
+        if (MenuNav.Confirmed(input))
         {
-            if (ctx.Input.WasPressed(SDL.Keycode.C))
+            switch (options[_cursor])
             {
-                ctx.Player = SaveManager.Load();
-                if (ctx.Player is not null)
-                {
-                    ctx.Screens.ChangeTo(new GuildScreen());
-                    return;
-                }
+                case Option.Continue:
+                    ctx.Player = SaveManager.Load();
+                    if (ctx.Player is not null)
+                        ctx.Screens.ChangeTo(new GuildScreen());
+                    break;
+                case Option.NewAdventurer:
+                    ctx.Screens.ChangeTo(new NamingScreen());
+                    break;
+                case Option.Quit:
+                    input.RequestQuit();
+                    break;
             }
-            if (ctx.Input.WasPressed(SDL.Keycode.N))
-                ctx.Screens.ChangeTo(new NamingScreen());
-        }
-        else if (ctx.Input.WasPressed(SDL.Keycode.Return) || ctx.Input.WasPressed(SDL.Keycode.Space))
-        {
-            ctx.Screens.ChangeTo(new NamingScreen());
         }
     }
+
+    private enum Option { Continue, NewAdventurer, Quit }
+
+    private int _cursor;
+
+    private static Option[] Options() => SaveManager.HasSave
+        ? [Option.Continue, Option.NewAdventurer, Option.Quit]
+        : [Option.NewAdventurer, Option.Quit];
+
+    private static string OptionLabel(Option option) => option switch
+    {
+        Option.Continue => "続きから",
+        Option.NewAdventurer => "冒険者登録",
+        _ => "終了",
+    };
 
     public void Draw(GameContext ctx)
     {
@@ -81,20 +102,27 @@ public sealed class TitleScreen : IScreen
     private void DrawPrompt(GameContext ctx)
     {
         var r = ctx.Renderer;
-        var text = SaveManager.HasSave ? "[C] 続きから      [N] 新規登録" : "[Enter] 冒険者登録";
-
-        // Quantised pulse: the font cache is keyed by colour, so a handful of discrete steps keeps it from
-        // filling up with a new texture every frame the way a smooth fade would.
-        var steps = new[] { 130, 170, 210, 245 };
+        // Quantised pulse on the selected row: the font cache is keyed by colour, so a handful of discrete
+        // steps keeps it from filling up with a new texture every frame the way a smooth fade would.
+        var steps = new[] { 150, 190, 225, 255 };
         var index = (int)((Math.Sin(_time * 2.6) * 0.5 + 0.5) * (steps.Length - 1) + 0.5);
         var level = (byte)steps[Math.Clamp(index, 0, steps.Length - 1)];
-        var color = Colors.Rgb(level, (byte)(level * 0.92), (byte)(level * 0.55));
+        var selectedColor = Colors.Rgb(level, (byte)(level * 0.92), (byte)(level * 0.55));
 
-        var (w, _) = ctx.Fonts.Measure(text, 14);
-        ctx.Fonts.DrawText(r.Handle, text, (TitleArt.BackdropWidth - w) / 2f, 356, 14, color);
+        var options = Options();
+        var y = 340f;
+        for (var i = 0; i < options.Length; i++)
+        {
+            var label = OptionLabel(options[i]);
+            var selected = i == _cursor;
+            var (w, _) = ctx.Fonts.Measure(label, selected ? 15 : 13);
+            ctx.Fonts.DrawText(r.Handle, label, (TitleArt.BackdropWidth - w) / 2f, y,
+                selected ? 15 : 13, selected ? selectedColor : Colors.Rgb(122, 116, 104));
+            y += 20;
+        }
 
-        const string hint = "[Esc] 終了";
+        var hint = $"[↑↓]選ぶ  [{MenuNav.ConfirmHint(ctx.Input)}]決定";
         var (hw, _) = ctx.Fonts.Measure(hint, 10);
-        ctx.Fonts.DrawText(r.Handle, hint, TitleArt.BackdropWidth - hw - 12, 382, 10, Colors.Rgb(120, 112, 100));
+        ctx.Fonts.DrawText(r.Handle, hint, TitleArt.BackdropWidth - hw - 12, 384, 10, Colors.Rgb(120, 112, 100));
     }
 }

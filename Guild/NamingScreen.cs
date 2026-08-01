@@ -52,10 +52,10 @@ public sealed class NamingScreen : IScreen
         if (input.WasPressed(SDL.Keycode.Backspace) && _name.Length > 0)
             _name = _name[..^1];
 
-        if (input.WasPressed(SDL.Keycode.Left) || input.WasPressed(SDL.Keycode.Right) || input.WasPressed(SDL.Keycode.Tab))
+        if (MenuNav.Left(input) || MenuNav.Right(input))
             _gender = _gender == Gender.Male ? Gender.Female : Gender.Male;
 
-        if (MenuNav.Confirmed(input) && _name.Trim().Length > 0)
+        if (input.TextEntryConfirmed() && _name.Trim().Length > 0)
             _phase = Phase.Confirm;
     }
 

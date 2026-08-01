@@ -41,9 +41,9 @@ public sealed class BountyScreen : IScreen
             return;
         }
 
-        if (input.WasPressed(SDL.Keycode.Down) && _scroll < Math.Max(0, _lines.Count - VisibleRows))
+        if (MenuNav.Down(input) && _scroll < Math.Max(0, _lines.Count - VisibleRows))
             _scroll++;
-        if (input.WasPressed(SDL.Keycode.Up) && _scroll > 0)
+        if (MenuNav.Up(input) && _scroll > 0)
             _scroll--;
 
         if (!MenuNav.Confirmed(input) || _lines.Count == 0)

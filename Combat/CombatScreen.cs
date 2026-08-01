@@ -126,11 +126,11 @@ public sealed class CombatScreen : IScreen
                 UpdateItemSelect(ctx, input);
                 break;
             case Phase.RoundResolved:
-                if (input.WasPressed(SDL.Keycode.Return) || input.WasPressed(SDL.Keycode.Space))
+                if (MenuNav.Confirmed(input))
                     BeginRound();
                 break;
             case Phase.BattleEnd:
-                if (input.WasPressed(SDL.Keycode.Return) || input.WasPressed(SDL.Keycode.Space))
+                if (MenuNav.Confirmed(input))
                 {
                     if (_battle.Player.Stats.IsDead)
                         ctx.Screens.ChangeTo(new Guild.GameOverScreen());
@@ -141,7 +141,7 @@ public sealed class CombatScreen : IScreen
                 }
                 break;
             case Phase.BattleSummary:
-                if (input.WasPressed(SDL.Keycode.Return) || input.WasPressed(SDL.Keycode.Space))
+                if (MenuNav.Confirmed(input))
                 {
                     if (_battle.LevelUp is not null)
                     {
@@ -155,7 +155,7 @@ public sealed class CombatScreen : IScreen
                 }
                 break;
             case Phase.LevelUpSummary:
-                if (input.WasPressed(SDL.Keycode.Return) || input.WasPressed(SDL.Keycode.Space))
+                if (MenuNav.Confirmed(input))
                     ctx.Screens.ChangeTo(_dungeonScreen);
                 break;
         }
@@ -165,10 +165,10 @@ public sealed class CombatScreen : IScreen
 
     private void UpdateMenu(GameContext ctx, InputManager input)
     {
-        if (input.WasPressed(SDL.Keycode.Down)) _cursor = (_cursor + 1) % MenuLabels.Length;
-        if (input.WasPressed(SDL.Keycode.Up)) _cursor = (_cursor - 1 + MenuLabels.Length) % MenuLabels.Length;
+        if (MenuNav.Down(input)) _cursor = (_cursor + 1) % MenuLabels.Length;
+        if (MenuNav.Up(input)) _cursor = (_cursor - 1 + MenuLabels.Length) % MenuLabels.Length;
 
-        if (!input.WasPressed(SDL.Keycode.Return) && !input.WasPressed(SDL.Keycode.Space))
+        if (!MenuNav.Confirmed(input))
             return;
 
         switch ((MenuCommand)_cursor)
@@ -205,11 +205,11 @@ public sealed class CombatScreen : IScreen
     private void UpdateTargetSelect(GameContext ctx, InputManager input)
     {
         var alive = _battle.AliveEnemies;
-        if (input.WasPressed(SDL.Keycode.Escape)) { _phase = Phase.Menu; _cursor = 0; return; }
-        if (input.WasPressed(SDL.Keycode.Down)) _cursor = (_cursor + 1) % alive.Count;
-        if (input.WasPressed(SDL.Keycode.Up)) _cursor = (_cursor - 1 + alive.Count) % alive.Count;
+        if (MenuNav.Cancelled(input)) { _phase = Phase.Menu; _cursor = 0; return; }
+        if (MenuNav.Down(input)) _cursor = (_cursor + 1) % alive.Count;
+        if (MenuNav.Up(input)) _cursor = (_cursor - 1 + alive.Count) % alive.Count;
 
-        if (input.WasPressed(SDL.Keycode.Return) || input.WasPressed(SDL.Keycode.Space))
+        if (MenuNav.Confirmed(input))
         {
             var target = alive[_cursor];
             ctx.Audio.Play(SoundId.WeaponHit);
@@ -221,11 +221,11 @@ public sealed class CombatScreen : IScreen
     private void UpdateSpellSelect(GameContext ctx, InputManager input)
     {
         var spells = _battle.Player.KnownSpells;
-        if (input.WasPressed(SDL.Keycode.Escape)) { _phase = Phase.Menu; _cursor = 0; return; }
-        if (input.WasPressed(SDL.Keycode.Down)) _cursor = (_cursor + 1) % spells.Count;
-        if (input.WasPressed(SDL.Keycode.Up)) _cursor = (_cursor - 1 + spells.Count) % spells.Count;
+        if (MenuNav.Cancelled(input)) { _phase = Phase.Menu; _cursor = 0; return; }
+        if (MenuNav.Down(input)) _cursor = (_cursor + 1) % spells.Count;
+        if (MenuNav.Up(input)) _cursor = (_cursor - 1 + spells.Count) % spells.Count;
 
-        if (!input.WasPressed(SDL.Keycode.Return) && !input.WasPressed(SDL.Keycode.Space))
+        if (!MenuNav.Confirmed(input))
             return;
 
         var spell = spells[_cursor];
@@ -247,12 +247,12 @@ public sealed class CombatScreen : IScreen
     private void UpdateItemSelect(GameContext ctx, InputManager input)
     {
         var items = UsableItems(ctx);
-        if (input.WasPressed(SDL.Keycode.Escape) || items.Count == 0) { _phase = Phase.Menu; _cursor = 0; return; }
+        if (MenuNav.Cancelled(input) || items.Count == 0) { _phase = Phase.Menu; _cursor = 0; return; }
         if (_cursor >= items.Count) _cursor = items.Count - 1;
-        if (input.WasPressed(SDL.Keycode.Down)) _cursor = (_cursor + 1) % items.Count;
-        if (input.WasPressed(SDL.Keycode.Up)) _cursor = (_cursor - 1 + items.Count) % items.Count;
+        if (MenuNav.Down(input)) _cursor = (_cursor + 1) % items.Count;
+        if (MenuNav.Up(input)) _cursor = (_cursor - 1 + items.Count) % items.Count;
 
-        if (!input.WasPressed(SDL.Keycode.Return) && !input.WasPressed(SDL.Keycode.Space))
+        if (!MenuNav.Confirmed(input))
             return;
 
         var item = items[_cursor];

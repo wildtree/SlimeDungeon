@@ -10,15 +10,34 @@ public static class MenuNav
     {
         if (count <= 0)
             return 0;
-        if (input.WasPressed(SDL.Keycode.Down)) cursor = (cursor + 1) % count;
-        if (input.WasPressed(SDL.Keycode.Up)) cursor = (cursor - 1 + count) % count;
+        if (Down(input)) cursor = (cursor + 1) % count;
+        if (Up(input)) cursor = (cursor - 1 + count) % count;
         return cursor;
     }
 
-    public static bool Confirmed(InputManager input) =>
-        input.WasPressed(SDL.Keycode.Return) || input.WasPressed(SDL.Keycode.Space);
+    /// <summary>Cursor movement, from the arrow keys or the pad's d-pad.</summary>
+    public static bool Up(InputManager input) =>
+        input.WasPressed(SDL.Keycode.Up) || input.WasPressed(InputManager.DpadUp);
 
-    public static bool Cancelled(InputManager input) => input.WasPressed(SDL.Keycode.Escape);
+    public static bool Down(InputManager input) =>
+        input.WasPressed(SDL.Keycode.Down) || input.WasPressed(InputManager.DpadDown);
+
+    public static bool Left(InputManager input) =>
+        input.WasPressed(SDL.Keycode.Left) || input.WasPressed(InputManager.DpadLeft);
+
+    public static bool Right(InputManager input) =>
+        input.WasPressed(SDL.Keycode.Right) || input.WasPressed(InputManager.DpadRight);
+
+    public static bool Confirmed(InputManager input) => input.WasPressed(GameAction.Confirm);
+
+    public static bool Cancelled(InputManager input) => input.WasPressed(GameAction.Cancel);
+
+    public static bool MenuRequested(InputManager input) => input.WasPressed(GameAction.Menu);
+
+    /// <summary>Button names for on-screen hints, matched to whatever the player is actually holding.</summary>
+    public static string ConfirmHint(InputManager input) => input.GamepadConnected ? "A" : "X";
+    public static string CancelHint(InputManager input) => input.GamepadConnected ? "B" : "Z";
+    public static string MenuHint(InputManager input) => input.GamepadConnected ? "X" : "S";
 
     /// <summary>
     /// Widest rendered width across every label in a list, at the given font size — used so a selection
