@@ -28,6 +28,9 @@ public sealed class CombatEncounter
     /// <summary>Slimes that got away — white ones mostly. They are worth nothing.</summary>
     public List<Slime> Escaped { get; } = new();
 
+    /// <summary>Ore prised out of the metal slimes killed here, for the end-of-battle summary.</summary>
+    public List<Metal> MaterialsFound { get; } = new();
+
     /// <summary>Set on victory when the EXP award pushed the player up at least one level; null otherwise.</summary>
     public LevelUpSummary? LevelUp { get; private set; }
 
@@ -75,6 +78,14 @@ public sealed class CombatEncounter
 
     public ActionResult PlayerAttack(Slime target)
     {
+        // A dragon slime's hide turns every blade ever forged but one. Nothing else is even worth swinging.
+        if (target.IsDragon && !Player.WieldsSlimeSlayer)
+        {
+            var turned = $"{Player.Name}の攻撃！ しかし{target.DisplayLabel}の体には傷ひとつつかない";
+            AddLog(turned);
+            return new ActionResult(ActionOutcome.NoEffect, 0, turned);
+        }
+
         // Steel finds nothing to bite on a white slime. It still counts as having been attacked, which is the
         // only thing that will make one turn and fight.
         if (target.IsWhite)
@@ -156,6 +167,14 @@ public sealed class CombatEncounter
                 var total = 0;
                 foreach (var enemy in targets)
                 {
+                    // Magic washes over a dragon slime and leaves nothing behind unless it was channelled
+                    // through the one wand made of the same stuff the dragon is.
+                    if (enemy.IsDragon && !Player.WieldsSlimeWand)
+                    {
+                        AddLog($"  {enemy.DisplayLabel}にはまったく効かない");
+                        continue;
+                    }
+
                     var vsMonster = Domain.ElementExtensions.GetMatchup(def.Element, ElementForDefense(enemy));
                     var matchupAdj = CombineWithDungeon(vsMonster, def.Element);
                     var effectiveRank = (int)spell.Rank + MatchupSteps(matchupAdj) + roll.RankSteps;
@@ -271,6 +290,14 @@ public sealed class CombatEncounter
         var total = 0;
         foreach (var enemy in targets)
         {
+            // A dragon slime is untouched by anything that is not slime-forged, and a shop-bought firecracker
+            // is about as far from that as it is possible to get.
+            if (enemy.IsDragon)
+            {
+                AddLog($"  {enemy.DisplayLabel}にはまったく効かない");
+                continue;
+            }
+
             // Steel slides off a white slime and so do spikes — both are simply things with points on them.
             // A firecracker is a burst of fire, which is another matter entirely.
             if (enemy.IsWhite && !isFirecracker)
@@ -379,8 +406,58 @@ public sealed class CombatEncounter
     /// formula where armour barely mitigated anything. Slimes roll for a critical or a fumble on the same
     /// curve the player does — luck cuts both ways.
     /// </summary>
+    /// <summary>
+    /// What a dragon's blow costs someone wearing the full slime-forged set, as a share of their maximum HP.
+    ///
+    /// This is a fraction rather than a number because the alternative does not work: the dragon has to kill
+    /// outright through anything less than the full set, and be survivable through it, at whatever level the
+    /// player happens to arrive at. Any fixed figure either evaporates against a high-level HP pool or kills a
+    /// properly equipped adventurer who simply levelled less. Pinning it to max HP makes the fight the same
+    /// fight for everyone: about five blows to the grave, so you will be drinking potions and you cannot
+    /// afford to waste turns.
+    /// </summary>
+    private const double DragonBlowFraction = 0.25;
+
+    /// <summary>The same blow when it lands well.</summary>
+    private const double DragonCriticalFraction = 0.40;
+
+    private ActionResult DragonStrike(Slime enemy)
+    {
+        var roll = CombatMath.Roll();
+        if (roll.IsFailure)
+        {
+            var missed = $"{enemy.DisplayLabel}の攻撃を辛くもかわした！";
+            AddLog(missed);
+            return new ActionResult(ActionOutcome.Miss, 0, missed);
+        }
+
+        // No amount of ordinary armour is between you and this. Only the set is.
+        if (!Player.HasFullSlimeArmour)
+        {
+            var lethal = Player.Stats.Hp;
+            Player.Stats.Hp = 0;
+            var killed = $"{enemy.DisplayLabel}の一撃！ 装備ごと消し飛ばされた…";
+            AddLog(killed);
+            CheckDefeat();
+            return new ActionResult(ActionOutcome.Hit, lethal, killed);
+        }
+
+        var fraction = roll.IsCritical ? DragonCriticalFraction : DragonBlowFraction;
+        var dmg = Math.Max(1, (int)Math.Ceiling(Player.Stats.MaxHp * fraction));
+        Player.Stats.Hp = Math.Max(0, Player.Stats.Hp - dmg);
+
+        var crit = roll.IsCritical ? "痛恨の一撃！ " : "";
+        var msg = $"{crit}{enemy.DisplayLabel}の攻撃！ スライムの防具が受け止めた。{dmg}のダメージ";
+        AddLog(msg);
+        CheckDefeat();
+        return new ActionResult(ActionOutcome.Hit, dmg, msg);
+    }
+
     private ActionResult StrikePlayer(Slime enemy)
     {
+        if (enemy.IsDragon)
+            return DragonStrike(enemy);
+
         var roll = CombatMath.Roll();
         if (roll.IsFailure)
         {
@@ -443,6 +520,14 @@ public sealed class CombatEncounter
             Defeated.Add(e);
             Player.RecordKill(e.Color, e.Rank);
             ExpReward += e.ExpValue(DungeonElement);
+
+            // Most of a metal slime is slime. Only sometimes is there a usable piece of ore left in the mess.
+            if (Metals.ForSlime(e.Color) is { } ore && RandomUtil.Shared.NextDouble() < Metals.MaterialDropChance)
+            {
+                Player.AddMaterial(ore.Metal);
+                MaterialsFound.Add(ore.Metal);
+                AddLog($"{ore.Name}の素材を手に入れた！");
+            }
         }
 
         PlayerWon = Defeated.Count > 0;

@@ -145,7 +145,9 @@ public static class QuestFactory
     /// </summary>
     private static SlimeColor PickTargetColor(Random rnd)
     {
-        var colors = Enum.GetValues<SlimeColor>();
+        // Only the ordinary species. A metal slime is far too scarce to build a quota around, and the guild
+        // does not put a bounty on the dragon — that one is not work, it is a decision.
+        var colors = Slime.OrdinaryColors;
         var weights = colors
             .Select(c => Math.Sqrt(Slime.AverageSpawnChance(c, DungeonGenerator.ElementDungeonChance)))
             .ToArray();

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using SlimeDungeon.Core;
 
 namespace SlimeDungeon.Domain;
 
@@ -40,10 +41,15 @@ public enum TitleId
     NimbleFooted,
 
     GuildWorker, GuildBenefactor,
+
+    BronzeCollector, IronCollector, CopperCollector, SilverCollector,
+    MithrilCollector, AdamantiteCollector, OrichalcumCollector,
+
+    DragonSlimeSlayer,
 }
 
 /// <summary>Broad grouping, used to sort the title list into something readable.</summary>
-public enum TitleCategory { Beginning, Slaying, Bestiary, Quests, Delving, Guild, Growth, Craft, Living }
+public enum TitleCategory { Beginning, Slaying, Bestiary, Quests, Delving, Guild, Growth, Craft, Living, Forging }
 
 /// <summary>
 /// A title and the deed that earns it. <see cref="Requirement"/> is shown to the player for titles they have not
@@ -61,7 +67,37 @@ public static class Titles
     /// <summary>Granted the moment a character is registered, so the card is never blank.</summary>
     public const TitleId Starting = TitleId.Novice;
 
-    public static readonly TitleDefinition[] All =
+    /// <summary>
+    /// The collector title for each ore. Named for the slime rather than the metal — the guild's regulars call
+    /// someone who has forged the lot a "ブロンズコレクター", not a "青銅コレクター".
+    /// </summary>
+    private static readonly Dictionary<Metal, TitleId> CollectorTitles = new()
+    {
+        [Metal.Bronze] = TitleId.BronzeCollector,
+        [Metal.Iron] = TitleId.IronCollector,
+        [Metal.Copper] = TitleId.CopperCollector,
+        [Metal.Silver] = TitleId.SilverCollector,
+        [Metal.Mithril] = TitleId.MithrilCollector,
+        [Metal.Adamantite] = TitleId.AdamantiteCollector,
+        [Metal.Orichalcum] = TitleId.OrichalcumCollector,
+    };
+
+    public static TitleId CollectorTitleFor(Metal metal) => CollectorTitles[metal];
+
+    /// <summary>
+    /// One per ore, built from the metal table so a new ore brings its title with it automatically. The
+    /// condition is having *forged* every piece, not owning or wearing them: a sword and a wand can never be
+    /// held at once, so requiring a complete set on the body would make these unearnable by construction.
+    /// </summary>
+    private static IEnumerable<TitleDefinition> CollectorDefinitions() =>
+        Metals.All.Select(m => new TitleDefinition(
+            CollectorTitles[m.Metal],
+            $"{m.Name}コレクター",
+            TitleCategory.Forging,
+            $"{m.Name}の武器・防具をすべて作成する",
+            p => p.HasCompletedSet(m.Metal)));
+
+    private static readonly TitleDefinition[] Fixed =
     [
         new(TitleId.Novice, "駆け出し冒険者", TitleCategory.Beginning,
             "ギルドに登録する", _ => true),
@@ -85,8 +121,10 @@ public static class Titles
         // Bestiary.
         new(TitleId.Naturalist, "見習い博物学者", TitleCategory.Bestiary,
             "4種類のスライムを倒す", p => p.DistinctSlimeColorsDefeated >= 4),
+        // Was "全8種類" when eight was all there were. The metal species pushed the count to sixteen, so the
+        // wording drops the "全" rather than the threshold — nobody should lose a title they already earned.
         new(TitleId.Zoologist, "スライム博物学者", TitleCategory.Bestiary,
-            "全8種類のスライムを倒す", p => p.DistinctSlimeColorsDefeated >= 8),
+            "8種類のスライムを倒す", p => p.DistinctSlimeColorsDefeated >= 8),
 
         // Gathering work.
         new(TitleId.HerbEnthusiast, "薬草マニア", TitleCategory.Quests,
@@ -151,7 +189,17 @@ public static class Titles
             "登録から1年(360日)生き延びる", p => p.DaysSurvived >= 360),
         new(TitleId.NimbleFooted, "逃げ足の達人", TitleCategory.Living,
             "戦闘から30回逃げ切る", p => p.Counters.TimesFled >= 30),
+
+        // The one fight in the game that has to be prepared for rather than simply survived.
+        new(TitleId.DragonSlimeSlayer, "ドラゴンスライムスレイヤー", TitleCategory.Slaying,
+            "ドラゴンスライムを討伐する", p => p.HasDefeated(SlimeColor.Dragon)),
     ];
+
+    /// <summary>
+    /// Declared after <see cref="Fixed"/> and <see cref="CollectorDefinitions"/> on purpose: static field
+    /// initialisers run in source order, so putting this first would build the list out of a null array.
+    /// </summary>
+    public static readonly TitleDefinition[] All = [.. Fixed, .. CollectorDefinitions()];
 
     private static readonly Dictionary<TitleId, TitleDefinition> ById =
         All.ToDictionary(t => t.Id);

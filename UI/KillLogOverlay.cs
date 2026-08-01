@@ -24,8 +24,14 @@ public sealed class KillLogOverlay
     private const float CountRightX = PanelX + 300f;
     private const float BreakdownX = PanelX + 316f;
 
-    private const float IconSize = 22f;
-    private const float RowHeight = 27f;
+    /// <summary>
+    /// Sized so that all sixteen species fit inside the panel. The list is a checklist — undefeated species
+    /// stay listed and dimmed — so its height is fixed by how many species exist, not by how many the player
+    /// has met. At the old 27px a row the metal slimes and the dragon pushed the last five off the bottom of
+    /// the screen entirely.
+    /// </summary>
+    private const float IconSize = 16f;
+    private const float RowHeight = 17f;
 
     public void Update(GameContext ctx, float dt)
     {
@@ -76,27 +82,27 @@ public sealed class KillLogOverlay
                 r.FillRect(PanelX + 16, y - 3, PanelW - 32, RowHeight - 2, Colors.Rgb(30, 26, 22));
 
             var (idle, _) = ctx.Sprites.Slime(color);
-            r.DrawTexture(idle, IconX, y - 2, IconSize, IconSize);
+            r.DrawTexture(idle, IconX, y - 1, IconSize, IconSize);
 
             // Undefeated species stay listed but dimmed, so the panel doubles as a checklist.
             var nameColor = found ? Colors.White : Colors.Rgb(96, 92, 88);
-            fonts.DrawText(r.Handle, SlimeNames.FullName(color), NameX, y + 3, 12, nameColor);
+            fonts.DrawText(r.Handle, SlimeNames.FullName(color), NameX, y + 1, 11, nameColor);
 
             var element = Slime.ElementForColor(color);
-            fonts.DrawText(r.Handle, SlimeNames.ElementLabel(element), ElementX, y + 4, 11,
+            fonts.DrawText(r.Handle, SlimeNames.ElementLabel(element), ElementX, y + 2, 10,
                 found ? ElementColor(element) : Colors.Rgb(84, 80, 76));
 
-            DrawRightAligned(ctx, found ? $"{count}" : "-", CountRightX, y + 3, 13,
+            DrawRightAligned(ctx, found ? $"{count}" : "-", CountRightX, y + 1, 12,
                 found ? Colors.Gold : Colors.Rgb(84, 80, 76));
 
             if (found)
             {
                 var breakdown = string.Join("  ", records!.Select(k => $"{k.Rank.Label()}:{k.Count}"));
-                fonts.DrawText(r.Handle, breakdown, BreakdownX, y + 5, 9, Colors.Rgb(180, 176, 170));
+                fonts.DrawText(r.Handle, breakdown, BreakdownX, y + 3, 9, Colors.Rgb(180, 176, 170));
             }
             else
             {
-                fonts.DrawText(r.Handle, "未発見", BreakdownX, y + 5, 9, Colors.Rgb(84, 80, 76));
+                fonts.DrawText(r.Handle, "未発見", BreakdownX, y + 3, 9, Colors.Rgb(84, 80, 76));
             }
 
             y += RowHeight;

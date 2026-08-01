@@ -15,7 +15,8 @@ public static class BattleSummaryPopup
     private const float PanelW = 340f;
     private const int MaxRows = 6;
 
-    public static void Draw(GameContext ctx, IReadOnlyList<Slime> defeated, IReadOnlyList<Slime> escaped, int exp)
+    public static void Draw(GameContext ctx, IReadOnlyList<Slime> defeated, IReadOnlyList<Slime> escaped, int exp,
+        IReadOnlyList<Metal>? materials = null)
     {
         var r = ctx.Renderer;
         var fonts = ctx.Fonts;
@@ -23,8 +24,10 @@ public static class BattleSummaryPopup
         var lines = Group(defeated);
         var shown = lines.Take(MaxRows).ToList();
         var hidden = lines.Count - shown.Count;
+        var ore = materials is { Count: > 0 } ? materials : null;
 
-        var panelH = 92f + shown.Count * 22f + (hidden > 0 ? 16f : 0f) + (escaped.Count > 0 ? 18f : 0f);
+        var panelH = 92f + shown.Count * 22f + (hidden > 0 ? 16f : 0f) + (escaped.Count > 0 ? 18f : 0f)
+                     + (ore is null ? 0f : 18f);
         var x = (640f - PanelW) / 2f;
         var y = (400f - panelH) / 2f;
 
@@ -68,6 +71,17 @@ public static class BattleSummaryPopup
         if (escaped.Count > 0)
         {
             DrawCentered(ctx, $"逃げられた: {escaped.Count}体", cx, ry, 10, Colors.Rgb(170, 150, 150));
+            ry += 18f;
+        }
+
+        // Ore never goes into the bag, so unless it is said here the player has no way of knowing a drop
+        // happened until they wander into the forge and notice the numbers have changed.
+        if (ore is not null)
+        {
+            var haul = string.Join("、", ore
+                .GroupBy(m => m)
+                .Select(g => g.Count() > 1 ? $"{Metals.Get(g.Key).Name}×{g.Count()}" : Metals.Get(g.Key).Name));
+            DrawCentered(ctx, $"素材入手: {haul}", cx, ry, 10, Colors.Gold);
             ry += 18f;
         }
 

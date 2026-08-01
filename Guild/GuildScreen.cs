@@ -49,13 +49,13 @@ public sealed class GuildScreen : IScreen
     /// </summary>
     private enum Entry
     {
-        Quest, Bounty, Shop, Potion, Dungeon, Heal, Titles, Records,
+        Quest, Bounty, Shop, Potion, Forge, Dungeon, Heal, Titles, Records,
         Inventory, KillLog, Magic,
     }
 
     private static Entry[] Entries =>
     [
-        Entry.Quest, Entry.Bounty, Entry.Shop, Entry.Potion, Entry.Dungeon,
+        Entry.Quest, Entry.Bounty, Entry.Shop, Entry.Potion, Entry.Forge, Entry.Dungeon,
         Entry.Heal, Entry.Titles, Entry.Records,
         Entry.Inventory, Entry.KillLog, Entry.Magic,
     ];
@@ -68,6 +68,9 @@ public sealed class GuildScreen : IScreen
         Entry.Bounty => player.PendingBountyTotal > 0 ? $"討伐報酬 ({player.PendingBountyTotal}G)" : "討伐報酬",
         Entry.Shop => "ショップ",
         Entry.Potion => "ポーション調合",
+        // The ore count rides on the label for the same reason the bounty total does: material is invisible
+        // everywhere else, so without this you would have no idea a drop had happened until you came looking.
+        Entry.Forge => player.Materials.Values.Sum() is var ore && ore > 0 ? $"鍛冶 (素材{ore}個)" : "鍛冶",
         Entry.Dungeon => "ダンジョンへ",
         Entry.Heal => $"回復 ({HealCost(player)}G)",
         Entry.Titles => "称号",
@@ -127,6 +130,7 @@ public sealed class GuildScreen : IScreen
             case Entry.Bounty: ctx.Screens.ChangeTo(new BountyScreen()); break;
             case Entry.Shop: ctx.Screens.ChangeTo(new ShopScreen()); break;
             case Entry.Potion: ctx.Screens.ChangeTo(new PotionCraftScreen()); break;
+            case Entry.Forge: ctx.Screens.ChangeTo(new ForgeScreen()); break;
             case Entry.Dungeon: ctx.Screens.ChangeTo(new DungeonSelectScreen()); break;
             case Entry.Heal: HandleHeal(player); break;
             case Entry.Titles: ctx.Screens.ChangeTo(new TitleSelectScreen()); break;

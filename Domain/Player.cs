@@ -46,6 +46,20 @@ public sealed class Player
 
     public PlayerCounters Counters { get; set; } = new();
 
+    /// <summary>
+    /// Ore prised out of metal slimes, waiting on the smith. Kept in a pouch of its own rather than in the bag:
+    /// material is worthless to carry and worthless to sell, and making it compete with loot for the two or
+    /// three slots a bag has would turn a lucky drop into a decision about what to leave behind.
+    /// </summary>
+    public Dictionary<Metal, int> Materials { get; set; } = new();
+
+    /// <summary>
+    /// Every forge recipe this adventurer has ever completed, by id. Kept separately from what they are
+    /// carrying because a collector title asks what you have made, not what you still own — you may sell a
+    /// bronze helmet, and you may never wear the sword and the wand at the same time.
+    /// </summary>
+    public List<string> CraftedRecipes { get; set; } = new();
+
     /// <summary>Every title earned so far, in the order they were awarded. Titles are never lost.</summary>
     public List<TitleId> EarnedTitles { get; set; } = new();
 
@@ -66,6 +80,9 @@ public sealed class Player
 
     [JsonIgnore]
     public int DistinctSlimeColorsDefeated => KillLog.Select(k => k.Color).Distinct().Count();
+
+    /// <summary>Whether this species has ever been brought down, at any rank.</summary>
+    public bool HasDefeated(SlimeColor color) => KillLog.Any(k => k.Color == color);
 
     /// <summary>Highest-ranked slime ever defeated, or null if none yet.</summary>
     [JsonIgnore]
@@ -177,6 +194,61 @@ public sealed class Player
             return weapons.Count >= 2 ? best + 1 : best;
         }
     }
+
+    // ---- Ore and the forge -----------------------------------------------------------------------
+
+    public int MaterialCount(Metal metal) => Materials.GetValueOrDefault(metal);
+
+    public void AddMaterial(Metal metal, int count = 1) =>
+        Materials[metal] = MaterialCount(metal) + count;
+
+    public bool HasCrafted(string recipeId) => CraftedRecipes.Contains(recipeId);
+
+    /// <summary>Whether the ore and the gold are both in hand.</summary>
+    public bool CanForge(ForgeRecipe recipe) =>
+        Gold >= recipe.GoldCost && recipe.Cost.All(c => MaterialCount(c.Key) >= c.Value);
+
+    /// <summary>
+    /// Pays for a piece and hands it over. The gear goes straight into the bag, so the caller must have
+    /// checked <see cref="BagHasRoom"/> — a piece forged with nowhere to put it would simply be lost.
+    /// </summary>
+    public Item Forge(ForgeRecipe recipe)
+    {
+        Gold -= recipe.GoldCost;
+        foreach (var (metal, count) in recipe.Cost)
+            Materials[metal] = MaterialCount(metal) - count;
+
+        var item = recipe.Create();
+        Bag.Add(item);
+        if (!CraftedRecipes.Contains(recipe.Id))
+            CraftedRecipes.Add(recipe.Id);
+        return item;
+    }
+
+    /// <summary>Whether every piece in one metal has been forged at least once — the collector's condition.</summary>
+    public bool HasCompletedSet(Metal metal) =>
+        Domain.Forge.ForSet(metal).All(r => HasCrafted(r.Id));
+
+    /// <summary>
+    /// The five slime-forged pieces worn at once. Anything short of all five and a dragon's blow is fatal, no
+    /// matter how much HP has been accumulated — which is the whole point of the set.
+    /// </summary>
+    [JsonIgnore]
+    public bool HasFullSlimeArmour => Domain.Forge.SlimeArmourPieces.All(HasSlimePieceEquipped);
+
+    private bool HasSlimePieceEquipped(ForgePiece piece)
+    {
+        var id = Domain.Forge.SlimeSetPrefix + piece;
+        return Equipment.Values.Any(i => i.ForgeId == id);
+    }
+
+    /// <summary>In hand, not merely owned — the only weapon that finds anything to bite on a dragon.</summary>
+    [JsonIgnore]
+    public bool WieldsSlimeSlayer => EquippedWeapons.Any(w => w.ForgeId == Domain.Forge.SlimeSetPrefix + ForgePiece.Sword);
+
+    /// <summary>Likewise for magic: without this in hand, nothing cast at a dragon reaches it.</summary>
+    [JsonIgnore]
+    public bool WieldsSlimeWand => EquippedWeapons.Any(w => w.ForgeId == Domain.Forge.SlimeSetPrefix + ForgePiece.Wand);
 
     public static Player CreateNew(string name, Gender gender)
     {

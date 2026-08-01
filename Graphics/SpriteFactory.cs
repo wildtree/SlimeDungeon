@@ -800,16 +800,44 @@ public sealed class SpriteFactory : IDisposable
         SlimeColor.Poison => Colors.Rgb(35, 30, 40),
         SlimeColor.Gold => Colors.Rgb(235, 190, 60),
         SlimeColor.White => Colors.Rgb(240, 240, 245),
+
+        // The ores. Each is the metal's own colour rather than a tint of green, so which one you have walked
+        // into is legible from across the room — that is the whole point of a rare drop being visible.
+        SlimeColor.Bronze => Colors.Rgb(176, 118, 62),
+        // Cooler and darker than the grey slime it would otherwise be mistaken for.
+        SlimeColor.Iron => Colors.Rgb(104, 112, 126),
+        SlimeColor.Copper => Colors.Rgb(206, 108, 56),
+        SlimeColor.Silver => Colors.Rgb(206, 214, 228),
+        SlimeColor.Mithril => Colors.Rgb(140, 200, 220),
+        SlimeColor.Adamantite => Colors.Rgb(96, 84, 130),
+        // Rose-gold, not gold. Drawn as a yellow metal it was indistinguishable from the gold slime on the
+        // map — two entirely different encounters that looked like the same one.
+        SlimeColor.Orichalcum => Colors.Rgb(242, 164, 142),
+
+        SlimeColor.Dragon => Colors.Rgb(120, 40, 46),
+
         _ => Colors.Rgb(255, 0, 255),
     };
 
+    /// <summary>
+    /// A metal slime is drawn with a hard, narrow highlight instead of the soft wet one the others get — a
+    /// polished surface reflects a line, a gel reflects a smear. It is what makes a silver slime read as metal
+    /// rather than as an unusually pale grey one.
+    /// </summary>
+    private static bool IsMetallic(SlimeColor color) => Domain.Metals.IsMetalSlime(color);
+
     private static PixelCanvas BuildSlime(SlimeColor color, bool hop)
     {
+        if (color == SlimeColor.Dragon)
+            return BuildDragonSlime(hop);
+
         var c = new PixelCanvas(TileSize, TileSize);
         var body = SlimeBodyColor(color);
         var dark = Colors.Rgb((byte)(body.R * 0.6), (byte)(body.G * 0.6), (byte)(body.B * 0.6));
         var shine = Colors.Rgb((byte)Math.Min(255, body.R + 60), (byte)Math.Min(255, body.G + 60), (byte)Math.Min(255, body.B + 60));
         var eyeColor = color == SlimeColor.White ? Colors.Rgb(30, 30, 30) : Colors.Black;
+        var metallic = IsMetallic(color);
+        var glint = Colors.Rgb(255, 255, 255, 210);
 
         if (!hop)
         {
@@ -817,6 +845,10 @@ public sealed class SpriteFactory : IDisposable
             c.FillEllipse(16, 22, 13, 9, body);
             c.FillEllipse(16, 26, 13, 5, dark);
             c.FillEllipse(11, 18, 4, 3, shine);
+            // One hard streak along the top of the highlight, and nothing else. A second glint lower down the
+            // body read as a small white mouth rather than as a reflection.
+            if (metallic)
+                c.FillEllipse(11, 17, 3, 1, glint);
             c.FillCircle(12, 21, 1.6, eyeColor);
             c.FillCircle(20, 21, 1.6, eyeColor);
         }
@@ -826,9 +858,56 @@ public sealed class SpriteFactory : IDisposable
             c.FillEllipse(16, 16, 10, 12, body);
             c.FillEllipse(16, 22, 10, 6, dark);
             c.FillEllipse(12, 10, 3, 3, shine);
+            if (metallic)
+                c.FillEllipse(12, 9, 3, 1, glint);
             c.FillCircle(12, 13, 1.6, eyeColor);
             c.FillCircle(20, 13, 1.6, eyeColor);
         }
+
+        return c;
+    }
+
+    /// <summary>
+    /// The dragon slime. The spec asks that a player be able to spot one on the map and decide whether to go
+    /// near it, so this deliberately breaks the silhouette every other slime shares: horns above the body line,
+    /// a spined ridge, a wider jaw, and slit eyes that burn. Nothing else on the floor looks like it.
+    /// </summary>
+    private static PixelCanvas BuildDragonSlime(bool hop)
+    {
+        var c = new PixelCanvas(TileSize, TileSize);
+        var body = SlimeBodyColor(SlimeColor.Dragon);
+        var dark = Colors.Rgb(72, 22, 28);
+        var shine = Colors.Rgb(190, 78, 74);
+        var horn = Colors.Rgb(228, 214, 190);
+        var eye = Colors.Rgb(255, 190, 60);
+        var pupil = Colors.Rgb(40, 10, 10);
+
+        // The body sits a little lower and wider when settled, and rears up on the second frame.
+        var cy = hop ? 20 : 23;
+        var ry = hop ? 11 : 9;
+
+        c.FillEllipse(16, 30, 11, 2, Colors.Rgb(0, 0, 0, 90));
+
+        // Horns, drawn before the body so the body's edge tucks in front of their base.
+        c.FillEllipse(9, cy - ry - 3, 2, 4, horn);
+        c.FillEllipse(23, cy - ry - 3, 2, 4, horn);
+
+        c.FillEllipse(16, cy, 14, ry, body);
+        c.FillEllipse(16, cy + 4, 14, ry - 4, dark);
+        c.FillEllipse(10, cy - 5, 4, 2, shine);
+
+        // The spined ridge along the back.
+        for (var i = -2; i <= 2; i++)
+            c.FillEllipse(16 + i * 4, cy - ry + 1 + Math.Abs(i), 1, 2, dark);
+
+        // Slit eyes: a bright almond with a vertical pupil, which no other slime has.
+        c.FillEllipse(11, cy - 2, 3, 2, eye);
+        c.FillEllipse(21, cy - 2, 3, 2, eye);
+        c.FillEllipse(11, cy - 2, 1, 2, pupil);
+        c.FillEllipse(21, cy - 2, 1, 2, pupil);
+
+        // A jaw line, hinting at something with teeth inside.
+        c.FillEllipse(16, cy + 5, 6, 1, Colors.Rgb(30, 8, 10));
 
         return c;
     }

@@ -357,7 +357,7 @@ public sealed class CombatScreen : IScreen
 
         // Modal, so they go on top of the status panel too. The tally comes first, then the celebration.
         if (_phase == Phase.BattleSummary)
-            BattleSummaryPopup.Draw(ctx, _battle.Defeated, _battle.Escaped, _battle.ExpReward);
+            BattleSummaryPopup.Draw(ctx, _battle.Defeated, _battle.Escaped, _battle.ExpReward, _battle.MaterialsFound);
         else if (_phase == Phase.LevelUpSummary && _battle.LevelUp is { } levelUp)
             LevelUpPopup.Draw(ctx, levelUp);
     }

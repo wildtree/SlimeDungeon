@@ -31,19 +31,21 @@ public static class Bounty
         SlimeColor.Poison => 2.0,
         SlimeColor.Gold => 3.0,
         SlimeColor.White => 5.0,
+
+        // A metal slime is armoured, uncommon and carries something the guild's smith wants back.
+        SlimeColor.Bronze or SlimeColor.Iron or SlimeColor.Copper or SlimeColor.Silver
+            or SlimeColor.Mithril or SlimeColor.Adamantite or SlimeColor.Orichalcum => 4.0,
+
+        // There is no going rate for a dragon slime. The guild pays what it has, and it is still not enough.
+        SlimeColor.Dragon => 100.0,
+
         _ => 1.0,
     };
 
-    public static string ColorLabel(SlimeColor color) => color switch
-    {
-        SlimeColor.Green => "グリーン",
-        SlimeColor.Red => "レッド",
-        SlimeColor.Blue => "ブルー",
-        SlimeColor.Yellow => "イエロー",
-        SlimeColor.Gray => "グレー",
-        SlimeColor.Poison => "ポイズン",
-        SlimeColor.Gold => "ゴールド",
-        SlimeColor.White => "ホワイト",
-        _ => color.ToString(),
-    };
+    /// <summary>
+    /// Delegates to <see cref="SlimeNames"/> rather than keeping a second copy of the table: this one used to
+    /// list all eight colours itself, which meant that adding a species named it correctly on every screen
+    /// except the bounty desk, where it fell through to the raw enum name.
+    /// </summary>
+    public static string ColorLabel(SlimeColor color) => SlimeNames.Of(color);
 }

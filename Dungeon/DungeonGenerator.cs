@@ -192,18 +192,63 @@ public static class DungeonGenerator
         }
     }
 
+    /// <summary>
+    /// How often an SS dungeon has a dragon slime in it. Low enough that meeting one is an event, high enough
+    /// that someone who has finished the slime set and gone looking will find one within an evening's delving.
+    /// </summary>
+    public const double DragonChance = 0.08;
+
     private static void PlaceSlimes(DungeonMap map, List<(int X, int Y)> floorTiles, Random rnd)
     {
         var count = rnd.Next(4, 9);
         var occupied = new HashSet<(int, int)>(map.Chests.Select(c => (c.X, c.Y))) { map.StairsPos };
-        var candidates = floorTiles.Where(t => !occupied.Contains(t)).OrderBy(_ => rnd.Next()).Take(count);
+        var candidates = floorTiles.Where(t => !occupied.Contains(t)).OrderBy(_ => rnd.Next()).Take(count).ToList();
 
         foreach (var (x, y) in candidates)
         {
-            var color = Slime.RollColor(map.DungeonElement);
+            var color = Slime.RollColor(map.DungeonElement, map.DungeonRank);
             var slime = Slime.Create(color, map.DungeonRank, map.DungeonElement);
             var moveTimer = (float)(rnd.NextDouble() * 2.4 + 1.2);
             map.Slimes.Add(new RoamingSlime { X = x, Y = y, Slime = slime, MoveTimer = moveTimer });
         }
+
+        PlaceDragon(map, floorTiles, occupied, rnd);
+    }
+
+    /// <summary>
+    /// The mutant, if this dungeon has one. It is placed well away from the stairs so that walking in never
+    /// puts you next to it before you have seen it — the whole design of the encounter is that the player
+    /// looks at it across the floor and decides.
+    /// </summary>
+    private static void PlaceDragon(DungeonMap map, List<(int X, int Y)> floorTiles,
+        HashSet<(int, int)> occupied, Random rnd)
+    {
+        if (map.DungeonRank != Rank.SS || rnd.NextDouble() >= DragonChance)
+            return;
+
+        var taken = new HashSet<(int, int)>(occupied);
+        foreach (var s in map.Slimes)
+            taken.Add((s.X, s.Y));
+
+        var (sx, sy) = map.StairsPos;
+        var farthest = floorTiles
+            .Where(t => !taken.Contains(t))
+            .OrderByDescending(t => Math.Abs(t.X - sx) + Math.Abs(t.Y - sy))
+            .Take(6)
+            .OrderBy(_ => rnd.Next())
+            .ToList();
+
+        if (farthest.Count == 0)
+            return;
+
+        var spot = farthest[0];
+        map.Slimes.Add(new RoamingSlime
+        {
+            X = spot.X,
+            Y = spot.Y,
+            Slime = Slime.CreateDragon(),
+            // It does not roam. It waits.
+            MoveTimer = float.MaxValue,
+        });
     }
 }

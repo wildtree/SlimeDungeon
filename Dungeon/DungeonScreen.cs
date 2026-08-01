@@ -430,6 +430,13 @@ public sealed class DungeonScreen : IScreen
     /// (so the map icon's color always matches what shows up in battle), plus rolled companions to fill the pack.</summary>
     private void StartEncounter(GameContext ctx, Slime primarySlime)
     {
+        // Nothing keeps a dragon slime company. It is always exactly one fight, on its own terms.
+        if (primarySlime.IsDragon)
+        {
+            StartFixedEncounter(ctx, new List<Slime> { primarySlime });
+            return;
+        }
+
         var rnd = RandomUtil.Shared;
         var r = rnd.NextGaussian(0, 2);
         var maxPackSize = _session.Map.DungeonRank == Rank.H ? HRankDungeonMaxPackSize : MaxPackSize;
@@ -438,8 +445,9 @@ public sealed class DungeonScreen : IScreen
         var slimes = new List<Slime> { primarySlime };
         for (var i = 1; i < count; i++)
         {
-            var color = Slime.RollColor(_session.Map.DungeonElement);
-            slimes.Add(Slime.Create(color, _session.Map.DungeonRank, _session.Map.DungeonElement));
+            var color = Slime.RollColor(_session.Map.DungeonElement, _session.Map.DungeonRank);
+            var companion = Slime.Create(color, _session.Map.DungeonRank, _session.Map.DungeonElement);
+            slimes.Add(companion);
         }
 
         StartFixedEncounter(ctx, slimes);

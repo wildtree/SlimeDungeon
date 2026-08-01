@@ -64,6 +64,13 @@ public sealed class Item
     /// <summary>Potion: which resource it restores.</summary>
     public PotionKind PotionKind { get; init; }
 
+    /// <summary>
+    /// Set on anything that came off the guild's anvil, to the id of the recipe that made it. It is what tells
+    /// the dragon's hide apart from an ordinary sword, and what the collector titles count. Null on everything
+    /// bought, found or started with.
+    /// </summary>
+    public string? ForgeId { get; init; }
+
     /// <summary>Gear that occupies one of the six body slots.
     /// Weapon/Shield may go in either hand (the player picks); everything else has one fixed slot.</summary>
     [JsonIgnore]
@@ -127,5 +134,6 @@ public sealed class Item
         BagCapacity = BagCapacity,
         SpellTaught = SpellTaught,
         PotionKind = PotionKind,
+        ForgeId = ForgeId,
     };
 }

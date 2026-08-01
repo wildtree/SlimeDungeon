@@ -19,7 +19,9 @@ public static class SlimeNames
         SlimeColor.Poison => "ポイズン",
         SlimeColor.Gold => "ゴールド",
         SlimeColor.White => "ホワイト",
-        _ => color.ToString(),
+        SlimeColor.Dragon => "ドラゴン",
+        // The seven metal species read their name from the ore table, so a metal is spelled one way everywhere.
+        _ => Metals.ForSlime(color)?.Name ?? color.ToString(),
     };
 
     public static string FullName(SlimeColor color) => $"{Of(color)}スライム";

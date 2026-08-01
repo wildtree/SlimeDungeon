@@ -21,6 +21,15 @@ public sealed class Slime
     /// </summary>
     public bool IsWhite => Color == SlimeColor.White;
 
+    /// <summary>Carries an ore. Uncommon, plated, and the only source of forging material.</summary>
+    public bool IsMetal => Metals.IsMetalSlime(Color);
+
+    /// <summary>
+    /// The mutant found alone in the deepest dungeons. Nothing but slime-forged gear touches it, and nothing
+    /// but a full set of slime-forged armour survives it.
+    /// </summary>
+    public bool IsDragon => Color == SlimeColor.Dragon;
+
     /// <summary>Set when a slime has escaped the battle. It is neither a threat nor a source of EXP after that.</summary>
     public bool HasFled { get; set; }
 
@@ -38,8 +47,22 @@ public sealed class Slime
     /// Damage subtracted from every hit. Ordinary slimes have none — their rank alone decides what can kill
     /// them. A white slime carries the defence of the rank above, which together with its HP is what makes it
     /// need magic a rank better than its own.
+    ///
+    /// A metal slime is plated at its own rank. That is deliberately just under the margin by which a same-rank
+    /// attack overshoots a same-rank slime's HP, so the ladder is untouched — bring the right rank and it still
+    /// dies in one blow — but anything below its rank now bounces off far more than it used to.
     /// </summary>
-    public int Def => IsWhite ? Math.Max(1, (int)Math.Round(CombatMath.RankPower((int)ToughenedRank))) : 0;
+    public int Def
+    {
+        get
+        {
+            if (IsWhite)
+                return Math.Max(1, (int)Math.Round(CombatMath.RankPower((int)ToughenedRank)));
+            if (IsMetal)
+                return Math.Max(1, (int)Math.Round(CombatMath.RankPower((int)Rank)));
+            return 0;
+        }
+    }
 
     /// <summary>
     /// Per-rank stat multiplier. Doubling every rank (the original curve) made a rank+1 dungeon lethal at the
@@ -77,15 +100,34 @@ public sealed class Slime
     /// <summary>How often a dungeon's own element decides a slime's colour; the rest are spread evenly.</summary>
     public const double FavoredColorChance = 0.9;
 
-    public static SlimeColor RollColor(Element? dungeonElement)
+    /// <summary>
+    /// The colours the ordinary roll draws from. The metal species and the dragon are deliberately excluded:
+    /// they are placed by rules of their own, and if they joined this pool the leftover slice — the one Poison,
+    /// Gold and White live in — would be split fifteen ways instead of seven, quietly making the three rarest
+    /// ordinary slimes twice as rare as everything balanced against them assumes.
+    /// </summary>
+    public static readonly SlimeColor[] OrdinaryColors =
+    [
+        SlimeColor.Green, SlimeColor.Red, SlimeColor.Blue, SlimeColor.Yellow,
+        SlimeColor.Gray, SlimeColor.Poison, SlimeColor.Gold, SlimeColor.White,
+    ];
+
+    /// <summary>
+    /// Picks what turns up. A dungeon whose rank has an ore in it yields the matching metal slime a small part
+    /// of the time; everything else falls through to the ordinary roll untouched.
+    /// </summary>
+    public static SlimeColor RollColor(Element? dungeonElement, Rank dungeonRank)
     {
         var rnd = RandomUtil.Shared;
-        var favored = FavoredColorFor(dungeonElement);
 
+        if (Metals.ForRank(dungeonRank) is { } ore && rnd.NextDouble() < Metals.SlimeSpawnChance)
+            return ore.Slime;
+
+        var favored = FavoredColorFor(dungeonElement);
         if (rnd.NextDouble() < FavoredColorChance)
             return favored;
 
-        var others = Enum.GetValues<SlimeColor>().Where(c => c != favored).ToArray();
+        var others = OrdinaryColors.Where(c => c != favored).ToArray();
         return others[rnd.Next(others.Length)];
     }
 
@@ -118,8 +160,7 @@ public sealed class Slime
     /// </summary>
     public static double AverageSpawnChance(SlimeColor color, double elementDungeonChance)
     {
-        var colors = Enum.GetValues<SlimeColor>();
-        var leftoverShare = (1 - FavoredColorChance) / (colors.Length - 1);
+        var leftoverShare = (1 - FavoredColorChance) / (OrdinaryColors.Length - 1);
         var elements = new[] { Element.Fire, Element.Water, Element.Wind, Element.Earth };
         var perElement = elementDungeonChance / elements.Length;
 
@@ -130,7 +171,9 @@ public sealed class Slime
         foreach (var element in elements)
             total += perElement * (ColorForElement(element) == color ? FavoredColorChance : leftoverShare);
 
-        return total;
+        // Every rank but H has an ore, and that slice of the spawns is taken before the ordinary roll runs,
+        // so an ordinary colour is this much scarcer than the shares above suggest.
+        return total * (1 - Metals.SlimeSpawnChance);
     }
 
     public static SlimeColor ColorForElement(Element element) => element switch
@@ -179,6 +222,9 @@ public sealed class Slime
     /// corner, and killing one at all means you brought the right magic.</summary>
     public const int WhiteExpMultiplier = 5;
 
+    /// <summary>The dragon is one fight and one fight only, and it is worth a career of ordinary ones.</summary>
+    public const int DragonExpMultiplier = 50;
+
     public int ExpValue(Element? dungeonElement)
     {
         var baseExp = (int)Rank * (int)Rank;
@@ -186,6 +232,53 @@ public sealed class Slime
             baseExp = (int)Math.Floor(baseExp * 1.1);
         if (IsWhite)
             baseExp *= WhiteExpMultiplier;
+        if (IsMetal)
+            baseExp *= Metals.ExpMultiplier;
+        if (IsDragon)
+            baseExp *= DragonExpMultiplier;
         return baseExp;
+    }
+
+    // ---- The dragon ------------------------------------------------------------------------------
+
+    /// <summary>
+    /// How much tougher the dragon is than an SS slime. Set so that a slime-forged weapon — the only thing
+    /// that can hurt it at all — needs the better part of a dozen clean hits, which with the fumble rate and
+    /// the healing the fight demands comes out at a long, deliberate battle rather than a slugging match.
+    ///
+    /// This started at 8 and the fight measured as no fight at all: won every time, in eight rounds, on one
+    /// or two potions. The trouble is that a rank-SS potion restores a full health bar, so the exchange only
+    /// becomes a real one when it lasts long enough that carrying enough potions is itself the question.
+    /// </summary>
+    public const int DragonHpMultiplier = 16;
+
+    /// <summary>
+    /// The mutant. Always SS, always alone, and built to a rule of its own rather than to the rank curve: what
+    /// makes it dangerous is not its numbers but what it ignores, which lives in <see cref="Combat"/>.
+    /// </summary>
+    public static Slime CreateDragon()
+    {
+        var hp = CombatMath.SlimeHp(Rank.SS) * DragonHpMultiplier;
+        return new Slime
+        {
+            Color = SlimeColor.Dragon,
+            Element = Element.None,
+            Rank = Rank.SS,
+            Stats = new Stats
+            {
+                MaxHp = hp,
+                Hp = hp,
+                MaxMp = 99,
+                Mp = 99,
+                // Str is never read for the dragon's damage — its blow is decided by what the player is
+                // wearing, not by a stat — but it is kept plausible so nothing that inspects it reads zero.
+                Str = 999,
+                Int = 999,
+                // High enough that it always moves first. You do not get the drop on this thing.
+                Dex = 999,
+                Agl = 999,
+            },
+            DisplayLabel = SlimeColor.Dragon.ToString(),
+        };
     }
 }
