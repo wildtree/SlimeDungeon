@@ -92,18 +92,27 @@ public sealed class Item
     [JsonIgnore]
     public bool HasEquipSlot => IsEquippable || IsPocketable || Category == ItemCategory.Bag;
 
-    public bool CanEquipToSlot(EquipSlot slot) => Category switch
+    /// <summary>
+    /// Which slot this item belongs in. The consumable case is answered from <see cref="IsPocketable"/> rather
+    /// than by listing categories again: the list used to be spelled out separately here and in three places
+    /// in the inventory screen, and adding firecrackers updated some of them and not others — which left the
+    /// new items with an "equip" option that silently did nothing at all.
+    /// </summary>
+    public bool CanEquipToSlot(EquipSlot slot)
     {
-        ItemCategory.Weapon or ItemCategory.Shield => slot is EquipSlot.RightHand or EquipSlot.LeftHand,
-        ItemCategory.Armor => slot == EquipSlot.Body,
-        ItemCategory.Helmet => slot == EquipSlot.Head,
-        ItemCategory.Gauntlet => slot == EquipSlot.Arm,
-        ItemCategory.Shoes => slot == EquipSlot.Feet,
-        ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote
-            or ItemCategory.Firecracker or ItemCategory.Caltrops =>
-            slot is EquipSlot.Item1 or EquipSlot.Item2,
-        _ => false,
-    };
+        if (IsPocketable)
+            return slot is EquipSlot.Item1 or EquipSlot.Item2;
+
+        return Category switch
+        {
+            ItemCategory.Weapon or ItemCategory.Shield => slot is EquipSlot.RightHand or EquipSlot.LeftHand,
+            ItemCategory.Armor => slot == EquipSlot.Body,
+            ItemCategory.Helmet => slot == EquipSlot.Head,
+            ItemCategory.Gauntlet => slot == EquipSlot.Arm,
+            ItemCategory.Shoes => slot == EquipSlot.Feet,
+            _ => false,
+        };
+    }
 
     public Item Clone() => new()
     {

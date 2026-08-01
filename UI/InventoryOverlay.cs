@@ -251,6 +251,22 @@ public sealed class InventoryOverlay
 
     private void EquipItem(Player player, Item item)
     {
+        // Anything that goes in an item slot is matched on the property, not on a list of categories. This
+        // used to be a switch case naming herbs, potions and antidotes; firecrackers and caltrops matched no
+        // case at all, so choosing "装備する" on one fell straight through the switch and did nothing —
+        // with no message to say why.
+        if (item.IsPocketable)
+        {
+            // Same rule as the hands: take a free slot without asking, but when both are occupied the player
+            // decides which readied item gets displaced back into the bag.
+            var freeSlot = Player.ItemSlots.FirstOrDefault(s => !player.Equipment.ContainsKey(s), EquipSlot.Item1);
+            if (Player.ItemSlots.Any(s => !player.Equipment.ContainsKey(s)))
+                TryEquip(player, item, freeSlot);
+            else
+                BeginSlotSelect(item, Player.ItemSlots);
+            return;
+        }
+
         switch (item.Category)
         {
             case ItemCategory.Weapon or ItemCategory.Shield:
@@ -279,20 +295,6 @@ public sealed class InventoryOverlay
             case ItemCategory.Shoes:
                 TryEquip(player, item, EquipSlot.Feet);
                 break;
-            case ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote:
-            {
-                // Same rule as the hands: take a free slot without asking, but when both are occupied the
-                // player decides which readied item gets displaced back into the bag.
-                var freeSlot = Player.ItemSlots.FirstOrDefault(s => !player.Equipment.ContainsKey(s), EquipSlot.Item1);
-                if (Player.ItemSlots.Any(s => !player.Equipment.ContainsKey(s)))
-                {
-                    TryEquip(player, item, freeSlot);
-                    break;
-                }
-
-                BeginSlotSelect(item, Player.ItemSlots);
-                return;
-            }
             case ItemCategory.Bag:
             {
                 // Also slot-neutral, but swapping to a *smaller* bag could leave more items than the new bag
@@ -550,20 +552,25 @@ public sealed class InventoryOverlay
         return changed;
     }
 
-    private static EquipSlot TargetSlotFor(Player player, Item item) => item.Category switch
+    /// <summary>Where <see cref="EquipItem"/> would actually put this, so the preview matches the outcome.</summary>
+    private static EquipSlot TargetSlotFor(Player player, Item item)
     {
-        // A free hand if there is one, otherwise the right hand — which is where the hand-choice menu's cursor
-        // starts, so the preview in the action menu matches what confirming straight through would do.
-        ItemCategory.Weapon or ItemCategory.Shield =>
-            Hands.FirstOrDefault(h => !player.Equipment.ContainsKey(h), EquipSlot.RightHand),
-        ItemCategory.Armor => EquipSlot.Body,
-        ItemCategory.Helmet => EquipSlot.Head,
-        ItemCategory.Gauntlet => EquipSlot.Arm,
-        ItemCategory.Shoes => EquipSlot.Feet,
-        ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote =>
-            Player.ItemSlots.FirstOrDefault(s => !player.Equipment.ContainsKey(s), EquipSlot.Item1),
-        _ => EquipSlot.RightHand,
-    };
+        if (item.IsPocketable)
+            return Player.ItemSlots.FirstOrDefault(s => !player.Equipment.ContainsKey(s), EquipSlot.Item1);
+
+        return item.Category switch
+        {
+            // A free hand if there is one, otherwise the right hand — which is where the slot-choice menu's
+            // cursor starts, so the preview matches what confirming straight through would do.
+            ItemCategory.Weapon or ItemCategory.Shield =>
+                Hands.FirstOrDefault(h => !player.Equipment.ContainsKey(h), EquipSlot.RightHand),
+            ItemCategory.Armor => EquipSlot.Body,
+            ItemCategory.Helmet => EquipSlot.Head,
+            ItemCategory.Gauntlet => EquipSlot.Arm,
+            ItemCategory.Shoes => EquipSlot.Feet,
+            _ => EquipSlot.RightHand,
+        };
+    }
 
     public void Draw(GameContext ctx)
     {
