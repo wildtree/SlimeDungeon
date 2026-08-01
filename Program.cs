@@ -65,8 +65,9 @@ while (!input.QuitRequested)
     // itself. The guild has half a dozen counters hanging off it and the dungeon hands off to combat and
     // back; deriving it centrally means every one of those is covered, and moving between them is seamless
     // because asking for the track already playing does nothing.
-    audio.PlayMusic(MusicForScreen(screens.Current));
-    audio.UpdateMusic();
+    var (wantedMusic, musicDelay) = MusicForScreen(screens.Current);
+    audio.PlayMusic(wantedMusic, musicDelay);
+    audio.UpdateMusic(dt);
 
     // Snapshot overlay state from *before* this frame's key presses are applied, so the same
     // WasPressed(I)/WasPressed(S) edge that opens an overlay can't also reach its close-check below.
@@ -93,16 +94,20 @@ while (!input.QuitRequested)
     renderer.Present();
 }
 
-static MusicId? MusicForScreen(IScreen screen) => screen switch
+static (MusicId? Track, float Delay) MusicForScreen(IScreen screen) => screen switch
 {
-    TitleScreen => MusicId.Title,
-    // Combat happens inside a dungeon trip, so the dungeon's music carries straight through it — cutting to
-    // silence for every slime would be far more jarring than letting it run under the fight.
-    SlimeDungeon.Dungeon.DungeonScreen or SlimeDungeon.Combat.CombatScreen => MusicId.Dungeon,
+    TitleScreen => (MusicId.Title, 0f),
+    // Registration is the one moment that is purely about what is ahead, so it gets its own theme rather
+    // than the guild's everyday one.
+    NamingScreen => (MusicId.Registration, 0f),
+    // Held back so the encounter sting is heard on its own; the dungeon theme keeps running underneath it
+    // until the battle music takes over.
+    SlimeDungeon.Combat.CombatScreen => (MusicId.Battle, 2.9f),
+    SlimeDungeon.Dungeon.DungeonScreen => (MusicId.Dungeon, 0f),
     // Silence when a character has died. Anything cheerful over that screen would be grotesque.
-    GameOverScreen => null,
+    GameOverScreen => (null, 0f),
     // Everything else is the guild and its counters.
-    _ => MusicId.Guild,
+    _ => (MusicId.Guild, 0f),
 };
 
 SDL.StopTextInput(window);

@@ -1,6 +1,6 @@
 namespace SlimeDungeon.Core;
 
-public enum MusicId { Title, Guild, Dungeon }
+public enum MusicId { Title, Guild, Dungeon, Battle, Registration }
 
 /// <summary>
 /// The three background pieces, synthesised like everything else in this game rather than loaded from files.
@@ -60,6 +60,8 @@ public static class MusicBank
         [MusicId.Title] = Title(),
         [MusicId.Guild] = Guild(),
         [MusicId.Dungeon] = Dungeon(),
+        [MusicId.Battle] = Battle(),
+        [MusicId.Registration] = Registration(),
     };
 
     // ---- The pieces --------------------------------------------------------------------------
@@ -230,6 +232,143 @@ public static class MusicBank
         return Render(30.0, (Drone, drone), (Pad, pad), (Bass, bass), (EPiano, lead), (Bell, bells));
     }
 
+    /// <summary>
+    /// Battle: fast and driving. A bass in continuous eighths so the pulse never lets up, chord stabs on the
+    /// offbeats to push against it, and a melody that runs rather than sings. Minor, but with a lift into the
+    /// major chord at the turnaround so it reads as urgent rather than grim — these are slimes, not a demon
+    /// lord. Twenty bars at a bar and a half, which is twice the harmonic pace of the dungeon theme.
+    /// </summary>
+    private static short[] Battle()
+    {
+        const double bar = 1.5;
+
+        // Dm Dm Bb C  Dm Dm Bb A  Dm F  C  Dm  Bb C  Dm Dm  Bb C  A  A
+        int[][] chords =
+        [
+            [50, 53, 57], [50, 53, 57], [46, 50, 53], [48, 52, 55],
+            [50, 53, 57], [50, 53, 57], [46, 50, 53], [45, 49, 52],
+            [50, 53, 57], [53, 57, 60], [48, 52, 55], [50, 53, 57],
+            [46, 50, 53], [48, 52, 55], [50, 53, 57], [50, 53, 57],
+            [46, 50, 53], [48, 52, 55], [45, 49, 52], [45, 49, 52],
+        ];
+
+        var bass = new List<N>();
+        var stabs = new List<N>();
+        for (var barIndex = 0; barIndex < chords.Length; barIndex++)
+        {
+            var t = barIndex * bar;
+            var c = chords[barIndex];
+            var eighth = bar / 8;
+
+            // Eight to the bar, alternating root and fifth: the engine of the whole piece.
+            for (var e = 0; e < 8; e++)
+            {
+                var note = e % 4 == 2 ? c[2] - 24 : c[0] - 24;
+                bass.Add(new N(t + e * eighth, eighth * 0.8, note, e % 2 == 0 ? 1.0 : 0.7));
+            }
+
+            // Chords land off the beat, so they kick against the bass rather than doubling it.
+            foreach (var note in c)
+            {
+                stabs.Add(new N(t + eighth * 1, eighth * 0.7, note + 12, 0.5));
+                stabs.Add(new N(t + eighth * 3, eighth * 0.7, note + 12, 0.45));
+                stabs.Add(new N(t + eighth * 6, eighth * 0.7, note + 12, 0.5));
+            }
+        }
+
+        // A running lead in mostly eighths, with a held note at the end of each four-bar phrase to breathe.
+        var lead = new List<N>();
+        int[][] phrases =
+        [
+            [74, 77, 79, 77, 74, 72, 74, 77],
+            [79, 81, 79, 77, 74, 77, 74, 72],
+            [74, 77, 81, 79, 77, 74, 72, 70],
+            [72, 74, 77, 79, 81, 79, 77, 74],
+            [77, 79, 81, 84, 81, 79, 77, 76],
+        ];
+        for (var p = 0; p < phrases.Length; p++)
+        {
+            var start = p * bar * 4;
+            var step = bar / 4;                       // four notes a bar
+            for (var i = 0; i < phrases[p].Length; i++)
+                lead.Add(new N(start + i * step, step * 0.85, phrases[p][i]));
+
+            // The back half of each phrase: a held note over the remaining two bars.
+            lead.Add(new N(start + bar * 2, bar * 1.8, phrases[p][^1] + (p % 2 == 0 ? 5 : 3), 0.9));
+        }
+
+        return Render(30.0, (Bass, bass), (EPiano, stabs), (Horn, lead));
+    }
+
+    /// <summary>
+    /// Registration: the one piece in the game that is purely looking forward. Bright major, a bouncing bass,
+    /// and a melody that keeps stepping upward and landing higher than it started — the sound of signing your
+    /// name to something before you know how it turns out.
+    /// </summary>
+    private static short[] Registration()
+    {
+        const double bar = 1.5;
+
+        // C  G  Am F  C  G  F  G  C  Em F  G  Am F  G  C  F  G  C  C
+        int[][] chords =
+        [
+            [60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60],
+            [60, 64, 67], [55, 59, 62], [53, 57, 60], [55, 59, 62],
+            [60, 64, 67], [52, 55, 59], [53, 57, 60], [55, 59, 62],
+            [57, 60, 64], [53, 57, 60], [55, 59, 62], [60, 64, 67],
+            [53, 57, 60], [55, 59, 62], [60, 64, 67], [60, 64, 67],
+        ];
+
+        var bass = new List<N>();
+        var comp = new List<N>();
+        for (var barIndex = 0; barIndex < chords.Length; barIndex++)
+        {
+            var t = barIndex * bar;
+            var c = chords[barIndex];
+            var quarter = bar / 4;
+
+            // A bouncing root-fifth-root-fifth, lighter than the battle theme's relentless eighths.
+            bass.Add(new N(t, quarter * 0.7, c[0] - 24));
+            bass.Add(new N(t + quarter, quarter * 0.7, c[2] - 24, 0.7));
+            bass.Add(new N(t + quarter * 2, quarter * 0.7, c[0] - 24, 0.9));
+            bass.Add(new N(t + quarter * 3, quarter * 0.7, c[2] - 24, 0.7));
+
+            foreach (var note in c)
+            {
+                comp.Add(new N(t + quarter * 0.5, quarter * 0.45, note + 12, 0.45));
+                comp.Add(new N(t + quarter * 2.5, quarter * 0.45, note + 12, 0.42));
+            }
+        }
+
+        // Each phrase opens a step higher than the last, so the tune keeps climbing across the loop.
+        var lead = new List<N>();
+        int[][] phrases =
+        [
+            [72, 74, 76, 79, 76, 74],
+            [74, 76, 79, 81, 79, 76],
+            [76, 79, 81, 84, 81, 79],
+            [79, 76, 74, 72, 74, 76],
+            [72, 76, 79, 84, 79, 76],
+        ];
+        for (var p = 0; p < phrases.Length; p++)
+        {
+            var start = p * bar * 4;
+            var step = bar / 3;
+            for (var i = 0; i < phrases[p].Length; i++)
+                lead.Add(new N(start + i * step, step * 0.8, phrases[p][i]));
+            lead.Add(new N(start + bar * 3, bar * 0.9, phrases[p][0] + 12, 0.85));
+        }
+
+        // A bell on the downbeat of each phrase, like a little fanfare punctuating the climb.
+        List<N> bells =
+        [
+            new(0.0, 0.8, 84, 0.4), new(6.0, 0.8, 88, 0.4),
+            new(12.0, 0.8, 91, 0.38), new(18.0, 0.8, 88, 0.4), new(24.0, 0.8, 84, 0.4),
+        ];
+
+        return Render(30.0, (Bass, bass), (EPiano, comp), (Horn, lead), (Bell, bells));
+    }
+
     // ---- Synthesis ---------------------------------------------------------------------------
 
     private static double Midi(int note) => 440.0 * Math.Pow(2, (note - 69) / 12.0);
@@ -252,7 +391,7 @@ public static class MusicBank
             buf[buf.Length - 1 - i] *= g;
         }
 
-        return Normalise(buf, peak: 0.72);
+        return Normalise(buf);
     }
 
     /// <summary>
@@ -308,12 +447,33 @@ public static class MusicBank
         return 1.0 - 0.18 * ((t - attack) / Math.Max(1e-6, duration - attack));
     }
 
-    private static short[] Normalise(float[] buf, double peak)
+    /// <summary>Roughly how loud each track should feel, in RMS. Matched across the set so switching rooms
+    /// never also changes the volume.</summary>
+    private const double TargetRms = 0.19;
+
+    /// <summary>The most any single sample may reach, so a track with hard attacks still cannot clip.</summary>
+    private const double PeakCeiling = 0.85;
+
+    /// <summary>
+    /// Levelled by loudness rather than by peak. Normalising to a fixed peak makes a piece with sharp attacks
+    /// — the battle theme, all stabs and short bass notes — measurably and audibly quieter than a piece of
+    /// sustained chords, which is exactly backwards for the one that is supposed to raise the pulse.
+    /// </summary>
+    private static short[] Normalise(float[] buf)
     {
+        double sumSquares = 0;
         var max = 0.0;
         foreach (var v in buf)
+        {
+            sumSquares += (double)v * v;
             max = Math.Max(max, Math.Abs(v));
-        var gain = max > 1e-6 ? peak / max : 0;
+        }
+
+        var rms = buf.Length > 0 ? Math.Sqrt(sumSquares / buf.Length) : 0;
+        if (rms <= 1e-6 || max <= 1e-6)
+            return new short[buf.Length];
+
+        var gain = Math.Min(TargetRms / rms, PeakCeiling / max);
 
         var output = new short[buf.Length];
         for (var i = 0; i < buf.Length; i++)

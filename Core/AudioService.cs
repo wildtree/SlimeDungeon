@@ -26,8 +26,18 @@ public sealed class AudioService : IDisposable
     /// </summary>
     private IntPtr _musicStream;
 
-    private readonly Dictionary<MusicId, byte[]> _musicBytes = new();
-    private MusicId? _nowPlaying;
+    /// <summary>
+    /// Built on a worker thread and published here in one go when finished. Five thirty-second tracks take
+    /// most of a second to synthesise, which is a second of the window not appearing if it is done inline.
+    /// Read through <see cref="Volatile"/> because the thread that writes it is not the one that reads it.
+    /// </summary>
+    private Dictionary<MusicId, byte[]>? _musicBytes;
+
+    /// <summary>What the game has asked for, and what is actually queued on the device — they differ while a
+    /// track is waiting out a delay, or while the music is still being generated.</summary>
+    private MusicId? _requested;
+    private MusicId? _started;
+    private float _startDelay;
 
     /// <summary>
     /// Background music sits well under the effects so it never competes with a hit or a fanfare. At 0.32 the
@@ -90,42 +100,70 @@ public sealed class AudioService : IDisposable
         {
             SDL.SetAudioStreamGain(_musicStream, MusicGain);
             SDL.ResumeAudioStreamDevice(_musicStream);
-            foreach (var (id, samples) in MusicBank.BuildAll())
-                _musicBytes[id] = ToBytes(samples);
+
+            // Generated off the startup path; whatever was requested in the meantime starts as soon as this
+            // lands. A second or so of silence at the title screen is a far better trade than a second of
+            // black window before it appears.
+            Task.Run(() =>
+            {
+                var built = new Dictionary<MusicId, byte[]>();
+                foreach (var (id, samples) in MusicBank.BuildAll())
+                    built[id] = ToBytes(samples);
+                Volatile.Write(ref _musicBytes, built);
+            });
         }
 
         Available = true;
     }
 
     /// <summary>
-    /// Switches the background track. Asking for the one already playing does nothing, so screens are free to
+    /// Asks for a background track. Requesting the one already asked for does nothing, so screens are free to
     /// call this every frame — which is how moving between the guild and its various counters stays seamless.
-    /// Passing null fades the music out by simply letting the queue drain.
+    /// Null means silence.
     /// </summary>
-    public void PlayMusic(MusicId? id)
+    /// <param name="delaySeconds">
+    /// Hold the change for this long before switching. Combat uses it so the encounter sting is heard on its
+    /// own rather than under the first bars of the battle theme; the outgoing track keeps playing until then.
+    /// </param>
+    public void PlayMusic(MusicId? id, float delaySeconds = 0)
     {
-        if (!Available || _musicStream == IntPtr.Zero || _nowPlaying == id)
+        if (!Available || _musicStream == IntPtr.Zero || _requested == id)
             return;
 
-        _nowPlaying = id;
-        SDL.ClearAudioStream(_musicStream);
-        if (id is { } wanted && _musicBytes.TryGetValue(wanted, out var data))
-            SDL.PutAudioStreamData(_musicStream, data, data.Length);
+        _requested = id;
+        _startDelay = delaySeconds;
     }
 
     /// <summary>
-    /// Keeps the current track looping. Call once a frame: when the queued audio runs low another copy of the
-    /// track is appended, which joins onto the end of what is already queued without a gap.
+    /// Starts whatever has been requested once it is due and available, and keeps the running track looping.
+    /// Call once a frame: when the queued audio runs low another copy is appended, joining the end of what is
+    /// already queued without a gap.
     /// </summary>
-    public void UpdateMusic()
+    public void UpdateMusic(float dt)
     {
-        if (!Available || _musicStream == IntPtr.Zero || _nowPlaying is not { } id)
-            return;
-        if (!_musicBytes.TryGetValue(id, out var data))
+        if (!Available || _musicStream == IntPtr.Zero)
             return;
 
-        var queuedBytes = SDL.GetAudioStreamQueued(_musicStream);
-        var queuedSeconds = queuedBytes / (float)(MusicBank.SampleRate * sizeof(short));
+        var bank = Volatile.Read(ref _musicBytes);
+        if (bank is null)
+            return;
+
+        if (_startDelay > 0)
+            _startDelay = Math.Max(0, _startDelay - dt);
+
+        // Switch tracks once the requested one is due.
+        if (_started != _requested && _startDelay <= 0)
+        {
+            SDL.ClearAudioStream(_musicStream);
+            _started = _requested;
+            if (_started is { } starting && bank.TryGetValue(starting, out var fresh))
+                SDL.PutAudioStreamData(_musicStream, fresh, fresh.Length);
+        }
+
+        if (_started is not { } playing || !bank.TryGetValue(playing, out var data))
+            return;
+
+        var queuedSeconds = SDL.GetAudioStreamQueued(_musicStream) / (float)(MusicBank.SampleRate * sizeof(short));
         if (queuedSeconds < RefillBelowSeconds)
             SDL.PutAudioStreamData(_musicStream, data, data.Length);
     }
