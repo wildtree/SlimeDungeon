@@ -97,6 +97,23 @@ public static class ItemFactory
             Value = (int)rank * (int)rank * 4,
         };
 
+    /// <summary>
+    /// A stone cut out of a gem slime. It does nothing in a fight and nothing on the body: it is worth money,
+    /// and it is what the commissions from the nobility ask for.
+    /// </summary>
+    public static Item CreateGem(Gem gem)
+    {
+        var def = Gems.Get(gem);
+        return new Item
+        {
+            Name = def.Name,
+            Category = ItemCategory.Gemstone,
+            Rank = def.Rank,
+            Gem = gem,
+            Value = Gems.Value(gem),
+        };
+    }
+
     public static Item CreateScroll(Rank rank, SpellId spell) =>
         new() { Name = $"スクロール({SpellDefinitions.NameOf(spell)}・{rank.Label()})", Category = ItemCategory.Scroll, Rank = rank, SpellTaught = spell, Value = (int)rank * 20 };
 

@@ -66,6 +66,16 @@ public sealed class SpriteFactory : IDisposable
     public IntPtr CombatBackdrop(Element? element) => _combatBackdrops[element ?? Element.None];
 
     public (IntPtr Idle, IntPtr Hop) Slime(SlimeColor color) => _slimes[color];
+
+    private readonly Dictionary<Domain.Gem, (IntPtr Idle, IntPtr Hop)> _gemSlimes = new();
+
+    /// <summary>
+    /// The sprite for a slime that is actually on the floor. Gem slimes share one species but not one look —
+    /// which stone a given one carries is the whole reason to walk over to it — so they are drawn from their
+    /// own table. Everything else answers from its colour.
+    /// </summary>
+    public (IntPtr Idle, IntPtr Hop) SlimeSprite(Domain.Slime slime) =>
+        slime.Gem is { } gem ? _gemSlimes[gem] : _slimes[slime.Color];
     public IntPtr PlayerSprite(Gender g, Direction d, WalkFrame f) => _player[(g, d, f)];
 
     public static SpriteFactory BuildAll(IntPtr renderer)
@@ -121,6 +131,10 @@ public sealed class SpriteFactory : IDisposable
 
         foreach (var icon in Enum.GetValues<HintIcon>())
             _hintIcons[icon] = Bake(renderer, HintIcons.Build(icon));
+
+        foreach (var gem in Enum.GetValues<Domain.Gem>())
+            _gemSlimes[gem] = (Bake(renderer, BuildGemSlime(gem, hop: false)),
+                               Bake(renderer, BuildGemSlime(gem, hop: true)));
 
         foreach (var color in Enum.GetValues<SlimeColor>())
         {
@@ -303,7 +317,7 @@ public sealed class SpriteFactory : IDisposable
     private enum ItemIconKey
     {
         Unknown, Sword, Wand, Shield, Armor, Helmet, Gauntlet, Shoes,
-        Bag, Herb, Antidote, HpPotion, MpPotion, Scroll, Map, Firecracker, Caltrops,
+        Bag, Herb, Antidote, HpPotion, MpPotion, Scroll, Map, Firecracker, Caltrops, Gemstone,
     }
 
     private static ItemIconKey IconKeyFor(Item item) => item.Category switch
@@ -322,6 +336,7 @@ public sealed class SpriteFactory : IDisposable
         ItemCategory.FullMapReveal => ItemIconKey.Map,
         ItemCategory.Firecracker => ItemIconKey.Firecracker,
         ItemCategory.Caltrops => ItemIconKey.Caltrops,
+        ItemCategory.Gemstone => ItemIconKey.Gemstone,
         _ => ItemIconKey.Unknown,
     };
 
@@ -473,6 +488,24 @@ public sealed class SpriteFactory : IDisposable
                 Spike(4, 7);
                 Spike(11, 6);
                 Spike(8, 12);
+                break;
+            }
+
+            case ItemIconKey.Gemstone:
+            {
+                // A cut stone seen face on: table across the top, crown facets meeting at a point below.
+                var facet = Colors.Rgb(150, 210, 240);
+                var facetLight = Colors.Rgb(215, 245, 255);
+                var facetDark = Colors.Rgb(80, 140, 180);
+
+                c.FillRect(4, 4, 8, 2, facetLight);
+                c.FillRect(3, 6, 10, 2, facet);
+                for (var i = 0; i < 5; i++)
+                    c.FillRect(3 + i, 8 + i, 10 - i * 2, 1, i < 2 ? facet : facetDark);
+
+                // The spark that makes it read as a gem rather than a blue lozenge.
+                c.FillRect(5, 4, 2, 1, Colors.White);
+                c.FillRect(5, 7, 1, 2, facetLight);
                 break;
             }
 
@@ -824,7 +857,32 @@ public sealed class SpriteFactory : IDisposable
 
         SlimeColor.Dragon => Colors.Rgb(120, 40, 46),
 
+        // Only used where a gem slime is drawn without knowing which stone it holds (the bestiary row). A
+        // slime actually on the floor is drawn in its own gem's colour — see GemSlime.
+        SlimeColor.Gem => Colors.Rgb(180, 205, 225),
+
         _ => Colors.Rgb(255, 0, 255),
+    };
+
+    /// <summary>The body colour of a slime grown around this stone.</summary>
+    private static SDL.Color GemBodyColor(Domain.Gem gem) => gem switch
+    {
+        Domain.Gem.Diamond => Colors.Rgb(226, 240, 250),
+
+        Domain.Gem.Ruby => Colors.Rgb(214, 44, 74),
+        Domain.Gem.Sapphire => Colors.Rgb(44, 82, 198),
+        Domain.Gem.Emerald => Colors.Rgb(30, 170, 106),
+        Domain.Gem.Opal => Colors.Rgb(226, 190, 160),
+
+        Domain.Gem.Agate => Colors.Rgb(196, 108, 74),
+        Domain.Gem.Aquamarine => Colors.Rgb(122, 208, 214),
+        Domain.Gem.Peridot => Colors.Rgb(160, 200, 60),
+        Domain.Gem.Moonstone => Colors.Rgb(206, 206, 232),
+
+        Domain.Gem.Flamestone => Colors.Rgb(224, 116, 40),
+        Domain.Gem.Streamstone => Colors.Rgb(72, 150, 200),
+        Domain.Gem.Galestone => Colors.Rgb(190, 196, 90),
+        _ => Colors.Rgb(150, 118, 72),
     };
 
     /// <summary>
@@ -834,10 +892,83 @@ public sealed class SpriteFactory : IDisposable
     /// </summary>
     private static bool IsMetallic(SlimeColor color) => Domain.Metals.IsMetalSlime(color);
 
+    /// <summary>
+    /// A gem slime: the body drawn up into a point instead of a dome, with the stone itself set in the middle
+    /// of it. The silhouette is the identifying mark — a player scanning a floor for a commission target needs
+    /// to spot one without reading anything — and the colour then says which stone it is.
+    /// </summary>
+    private static PixelCanvas BuildGemSlime(Domain.Gem gem, bool hop)
+    {
+        var c = new PixelCanvas(TileSize, TileSize);
+        var body = GemBodyColor(gem);
+        var dark = Colors.Rgb((byte)(body.R * 0.6), (byte)(body.G * 0.6), (byte)(body.B * 0.6));
+        var shine = Colors.Rgb((byte)Math.Min(255, body.R + 60), (byte)Math.Min(255, body.G + 60), (byte)Math.Min(255, body.B + 60));
+
+        // A rounded slime with a spire drawn up out of it, not a cone. The first attempt was a plain triangle
+        // and read as a tent: the family resemblance to every other slime has to survive, with the point as
+        // the thing that marks it out.
+        var bodyCy = hop ? 20 : 23;
+        var bodyRy = hop ? 9 : 8;
+        var tipY = hop ? 1 : 5;
+
+        c.FillEllipse(16, hop ? 30 : 31, 10, 2, Colors.Rgb(0, 0, 0, 80));
+
+        // The spire, from the tip down into the shoulders of the body.
+        var spireBase = bodyCy - bodyRy + 3;
+        for (var y = tipY; y <= spireBase; y++)
+        {
+            var t = (y - tipY) / (double)Math.Max(1, spireBase - tipY);
+            var w = (int)Math.Round(1 + 6 * Math.Pow(t, 1.35));
+            c.FillRect(16 - w, y, w * 2 + 1, 1, body);
+        }
+
+        c.FillEllipse(16, bodyCy, 12, bodyRy, body);
+        c.FillEllipse(16, bodyCy + 4, 12, bodyRy - 4, dark);
+
+        // A soft highlight on the upper left of the body, and a hard one down the spire's near edge.
+        c.FillEllipse(11, bodyCy - 4, 4, 3, shine);
+        for (var y = tipY + 2; y < spireBase; y++)
+        {
+            var t = (y - tipY) / (double)Math.Max(1, spireBase - tipY);
+            c.FillRect(16 - (int)Math.Round(1 + 6 * Math.Pow(t, 1.35)) + 1, y, 1, 1, shine);
+        }
+
+        // Eyes high on the body, well clear of the stone. Level with it they read as a face, and the gem
+        // between them turned into a snout — which made every one of the thirteen look like a piglet.
+        var eyeColor = Colors.Rgb(28, 28, 34);
+        c.FillCircle(11, bodyCy - 4, 1.5, eyeColor);
+        c.FillCircle(21, bodyCy - 4, 1.5, eyeColor);
+
+        // The stone in the core, below the face. Drawn with its own dark rim and a near-white centre rather
+        // than in the body's own colours: on a pale slime a merely lighter gem vanished entirely.
+        var gemY = bodyCy + 3;
+        var rim = Colors.Rgb(20, 20, 26);
+        var core = Colors.Rgb((byte)Math.Min(255, body.R / 2 + 140),
+                              (byte)Math.Min(255, body.G / 2 + 140),
+                              (byte)Math.Min(255, body.B / 2 + 140));
+
+        // A cut stone seen face on: rim first, then the bright table inside it.
+        for (var i = 0; i < 4; i++)
+        {
+            c.FillRect(16 - i, gemY - 3 + i, 1 + i * 2, 1, rim);
+            c.FillRect(16 - i, gemY + 3 - i, 1 + i * 2, 1, rim);
+        }
+        for (var i = 0; i < 3; i++)
+        {
+            c.FillRect(16 - i, gemY - 2 + i, 1 + i * 2, 1, core);
+            c.FillRect(16 - i, gemY + 2 - i, 1 + i * 2, 1, core);
+        }
+        c.FillRect(15, gemY - 1, 1, 1, Colors.White);
+
+        return c;
+    }
+
     private static PixelCanvas BuildSlime(SlimeColor color, bool hop)
     {
         if (color == SlimeColor.Dragon)
             return BuildDragonSlime(hop);
+        if (color == SlimeColor.Gem)
+            return BuildGemSlime(Domain.Gem.Diamond, hop);
 
         var c = new PixelCanvas(TileSize, TileSize);
         var body = SlimeBodyColor(color);

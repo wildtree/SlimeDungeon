@@ -59,7 +59,7 @@ public static class LevelUpPopup
         var remaining = Math.Max(0, s.ExpToNext - s.Exp);
         DrawCentered(ctx, $"EXP {s.Exp}  /  次のレベルまで {remaining}", cx, cy, 12, Colors.White);
         cy += 20f;
-        DrawCentered(ctx, "Enterで続ける", cx, cy, 11, Colors.Rgb(150, 145, 130));
+        ControlHints.DrawCentered(ctx, cx, cy, 11, Colors.Rgb(150, 145, 130), ControlHints.Confirm("続ける"));
     }
 
     private static void DrawStatRow(GameContext ctx, float x, float y, string label, int before, int after)

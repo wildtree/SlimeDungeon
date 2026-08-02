@@ -39,7 +39,10 @@ public static class Metals
     /// </summary>
     public static readonly MetalDefinition[] All =
     [
-        new(Metal.Bronze, "ブロンズ", "青銅", SlimeColor.Bronze, [Rank.G, Rank.F], Rank.F),
+        // Bronze reaches down to H. It used to start at G, which meant the whole forge — ore, smith, collector
+        // titles — was invisible to a new adventurer: rank H can only enter H and G dungeons, and half of
+        // those had nothing in them to find. A system nobody can stumble into may as well not be there.
+        new(Metal.Bronze, "ブロンズ", "青銅", SlimeColor.Bronze, [Rank.H, Rank.G, Rank.F], Rank.F),
         new(Metal.Iron, "アイアン", "鉄", SlimeColor.Iron, [Rank.E, Rank.D], Rank.D),
         new(Metal.Copper, "カッパー", "銅", SlimeColor.Copper, [Rank.C], Rank.C),
         new(Metal.Silver, "シルバー", "銀", SlimeColor.Silver, [Rank.B], Rank.B),

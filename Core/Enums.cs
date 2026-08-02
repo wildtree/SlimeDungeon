@@ -22,4 +22,11 @@ public enum SlimeColor
 
     /// <summary>The mutant. Not a metal, not part of any roll — see DungeonGenerator.</summary>
     Dragon,
+
+    /// <summary>
+    /// Slimes grown around a gemstone. One species rather than thirteen, deliberately: which stone a given one
+    /// holds lives on the slime itself and shows in its colour, but the kill record and the bounty desk treat
+    /// them alike, so the bestiary does not grow a page of near-identical rows.
+    /// </summary>
+    Gem,
 }

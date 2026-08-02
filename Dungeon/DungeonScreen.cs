@@ -445,8 +445,8 @@ public sealed class DungeonScreen : IScreen
         var slimes = new List<Slime> { primarySlime };
         for (var i = 1; i < count; i++)
         {
-            var color = Slime.RollColor(_session.Map.DungeonElement, _session.Map.DungeonRank);
-            var companion = Slime.Create(color, _session.Map.DungeonRank, _session.Map.DungeonElement);
+            var (color, gem) = Slime.Roll(_session.Map.DungeonElement, _session.Map.DungeonRank);
+            var companion = Slime.Create(color, _session.Map.DungeonRank, _session.Map.DungeonElement, gem);
             slimes.Add(companion);
         }
 
@@ -532,7 +532,7 @@ public sealed class DungeonScreen : IScreen
                     var slime = map.SlimeAt(x, y);
                     if (slime is not null)
                     {
-                        var (idle, hop) = sprites.Slime(slime.Slime.Color);
+                        var (idle, hop) = sprites.SlimeSprite(slime.Slime);
                         r.DrawTexture(slime.HopFrame ? hop : idle, px, py, TileSize, TileSize);
                     }
                 }

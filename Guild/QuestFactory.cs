@@ -65,6 +65,22 @@ public static class QuestFactory
         // lot of pressure for a game about taking things at your own pace.
         var deadline = currentDay + rnd.Next(8, 15);
 
+        // A gem commission is drawn first and separately. It is not one of the guild's own jobs — a noble house
+        // or a trading concern puts it up — so it does not take a turn in the ordinary rotation, it occasionally
+        // displaces one. Only offered where the stone can actually be found, which is rank B and above.
+        if (rank >= Gems.LowestRank && rnd.NextDouble() < GemQuestChance)
+        {
+            var gemQuest = TryGemQuest(rank, currentDay, rnd);
+            if (gemQuest is not null)
+                return gemQuest;
+        }
+
+        // Ore commissions likewise take a slot rather than a turn in the rotation, and only where the rank
+        // actually has an ore in it — which is everywhere except the very top of nothing, since bronze now
+        // reaches down to H.
+        if (Metals.ForRank(rank) is not null && rnd.NextDouble() < MetalQuestChance)
+            return MetalQuest(rank, currentDay, rnd);
+
         return (QuestType)rnd.Next(3) switch
         {
             QuestType.CollectHerb => new Quest
@@ -91,6 +107,103 @@ public static class QuestFactory
             },
             // Slay quests set their own deadline from how rare the target is, so they get the current day.
             _ => RandomSlimeQuest(rank, currentDay, rnd),
+        };
+    }
+
+    /// <summary>How often a board slot turns into an ore commission. Common enough to be part of the rotation.</summary>
+    private const double MetalQuestChance = 0.2;
+
+    /// <summary>
+    /// Ore commissions, sized from the rate the ore actually drops rather than from a flat number.
+    ///
+    /// A dungeon in an ore's band puts a metal slime on the floor about 12% of the time and a killed one gives
+    /// up its ore about half the time, across roughly six slimes a trip — so a trip is worth about a third of
+    /// a piece. Both the count and the deadline are derived from that figure, so if the drop rate is ever
+    /// retuned the contracts follow it instead of quietly becoming impossible.
+    /// </summary>
+    private static Quest MetalQuest(Rank rank, int currentDay, Random rnd)
+    {
+        var ore = Metals.ForRank(rank)!;
+
+        var perTrip = Metals.SlimeSpawnChance * Metals.MaterialDropChance
+                      * DungeonGenerator.AverageSlimesPerDungeon;
+
+        // Two to four pieces: enough to be a job, few enough that the expected trip count stays in the range
+        // an ordinary fortnight of play covers.
+        var count = rnd.Next(2, 5);
+        var expectedTrips = count / Math.Max(0.0001, perTrip);
+
+        // Two and a half times the expected wait, plus slack. A missed deadline costs rank points and a fine
+        // now, so a contract that is merely *usually* achievable is not good enough.
+        var days = (int)Math.Ceiling(expectedTrips * 2.5) + rnd.Next(4, 9);
+        var deadline = currentDay + Math.Clamp(days, 12, 60);
+
+        // Better than herb work of the same rank, in proportion to costing several times the trips. A herb
+        // contract of this rank pays rank*15; this lands around four times that.
+        var reward = (int)rank * 25 + count * (int)rank * 12;
+
+        return new Quest
+        {
+            Title = $"{ore.OreName}の採取",
+            Description = $"{ore.Name}スライムから{ore.OreName}を{count}個集める",
+            Type = QuestType.CollectMetal,
+            Rank = rank,
+            TargetMetal = ore.Metal,
+            TargetCount = count,
+            RewardGold = reward,
+            DeadlineDay = deadline,
+        };
+    }
+
+    /// <summary>
+    /// How often a board slot at a gem-bearing rank turns out to be a commission rather than guild work.
+    /// Uncommon on purpose: these pay several times what the guild does, and a board full of them would make
+    /// every other job look like a waste of a fortnight.
+    /// </summary>
+    private const double GemQuestChance = 0.22;
+
+    /// <summary>Who puts these up. Named only for flavour — the reward does not depend on which.</summary>
+    private static readonly string[] GemClients =
+    [
+        "貴族のご令嬢", "オルド伯爵家", "宝飾ギルド", "豪商ドルトン", "王都の宝石商", "領主夫人", "辺境伯家",
+    ];
+
+    /// <summary>
+    /// A commission for one particular stone. Always a single gem: they drop from roughly one slime in five
+    /// hundred at the right rank in the right dungeon, so asking for two would be asking for a season's work.
+    /// </summary>
+    private static Quest? TryGemQuest(Rank rank, int currentDay, Random rnd)
+    {
+        // Every gem of this rank, regardless of element — the client wants what they want, and finding the
+        // dungeon it can form in is the adventurer's problem.
+        var candidates = Gems.All.Where(g => g.Rank == rank).ToArray();
+        if (candidates.Length == 0)
+            return null;
+
+        var gem = candidates[rnd.Next(candidates.Length)];
+        var client = GemClients[rnd.Next(GemClients.Length)];
+
+        // Long. An aligned stone only forms in its own element's dungeon or a featureless one, so most of the
+        // wait is for the right dungeon to come up at all, not for the slime to appear once you are in it.
+        var deadline = currentDay + rnd.Next(40, 70);
+
+        var elementNote = gem.Element == Domain.Element.None
+            ? "無属性"
+            : $"{SlimeNames.ElementLabel(gem.Element)}属性";
+
+        return new Quest
+        {
+            Title = $"{gem.Name}の調達",
+            Description = $"{client}の依頼。{gem.Name}（{elementNote}）を1個納品する",
+            Type = QuestType.CollectGem,
+            Rank = rank,
+            TargetGem = gem.Gem,
+            TargetItemRank = rank,
+            Client = client,
+            TargetCount = 1,
+            // Several times an ordinary job of the rank. These are the paydays the whole system exists for.
+            RewardGold = Gems.Value(gem.Gem) * 3,
+            DeadlineDay = deadline,
         };
     }
 

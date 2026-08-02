@@ -345,12 +345,12 @@ public sealed class CombatScreen : IScreen
                 DrawMenu(ctx, UsableItems(ctx).Select(i => $"{i.Name} x{i.Quantity}").ToArray(), _cursor, "アイテム");
                 break;
             case Phase.RoundResolved:
-                ctx.Fonts.DrawText(r.Handle, "Enterで続ける", 12, 380, 11, Colors.Highlight);
+                ControlHints.Draw(ctx, 12, 380, 11, Colors.Highlight, ControlHints.Confirm("続ける"));
                 break;
             case Phase.BattleEnd:
                 var msg = _battle.Player.Stats.IsDead ? "倒れてしまった…" : _battle.PlayerFled ? "戦闘から逃げ出した" : "戦闘に勝利した！";
                 ctx.Fonts.DrawText(r.Handle, msg, 12, 360, 14, Colors.Highlight);
-                ctx.Fonts.DrawText(r.Handle, "Enterで続ける", 12, 380, 11, Colors.Highlight);
+                ControlHints.Draw(ctx, 12, 380, 11, Colors.Highlight, ControlHints.Confirm("続ける"));
                 break;
         }
 
@@ -358,7 +358,8 @@ public sealed class CombatScreen : IScreen
 
         // Modal, so they go on top of the status panel too. The tally comes first, then the celebration.
         if (_phase == Phase.BattleSummary)
-            BattleSummaryPopup.Draw(ctx, _battle.Defeated, _battle.Escaped, _battle.ExpReward, _battle.MaterialsFound);
+            BattleSummaryPopup.Draw(ctx, _battle.Defeated, _battle.Escaped, _battle.ExpReward,
+                _battle.MaterialsFound, _battle.GemsFound);
         else if (_phase == Phase.LevelUpSummary && _battle.LevelUp is { } levelUp)
             LevelUpPopup.Draw(ctx, levelUp);
     }
@@ -385,7 +386,7 @@ public sealed class CombatScreen : IScreen
         for (var i = 0; i < alive.Count; i++)
         {
             var e = alive[i];
-            var (idle, _) = ctx.Sprites.Slime(e.Color);
+            var (idle, _) = ctx.Sprites.SlimeSprite(e);
             var center = spacing * (i + 1);
 
             r.DrawTexture(idle, center - SpriteSize / 2f, SpriteTop, SpriteSize, SpriteSize);

@@ -46,6 +46,9 @@ public enum TitleId
     MithrilCollector, AdamantiteCollector, OrichalcumCollector,
 
     DragonSlimeSlayer,
+
+    OreGatherer, OreHoarder, ApprenticeSmith, MasterSmith,
+    GemSeeker, GemCollector, Gemologist, JewellersFriend,
 }
 
 /// <summary>Broad grouping, used to sort the title list into something readable.</summary>
@@ -193,6 +196,27 @@ public static class Titles
         // The one fight in the game that has to be prepared for rather than simply survived.
         new(TitleId.DragonSlimeSlayer, "ドラゴンスライムスレイヤー", TitleCategory.Slaying,
             "ドラゴンスライムを討伐する", p => p.HasDefeated(SlimeColor.Dragon)),
+
+        // Ore and the anvil. Counted as the ore drops and as pieces come off the anvil, not by what is still
+        // owned — the whole point of both is that they get spent.
+        new(TitleId.OreGatherer, "鉱石ひろい", TitleCategory.Forging,
+            "金属の素材を10個集める", p => p.Counters.MaterialsGathered >= 10),
+        new(TitleId.OreHoarder, "鉱脈の主", TitleCategory.Forging,
+            "金属の素材を60個集める", p => p.Counters.MaterialsGathered >= 60),
+        new(TitleId.ApprenticeSmith, "見習い鍛冶", TitleCategory.Forging,
+            "鍛冶で武具を1つ作る", p => p.Counters.ItemsForged >= 1),
+        new(TitleId.MasterSmith, "名工", TitleCategory.Forging,
+            "鍛冶で武具を20個作る", p => p.Counters.ItemsForged >= 20),
+
+        // Gems. Seen rather than held, since a stone handed to the client who ordered it is gone.
+        new(TitleId.GemSeeker, "宝石さがし", TitleCategory.Forging,
+            "宝石を1個手に入れる", p => p.Counters.GemsFound >= 1),
+        new(TitleId.GemCollector, "宝石収集家", TitleCategory.Forging,
+            "宝石を10個手に入れる", p => p.Counters.GemsFound >= 10),
+        new(TitleId.Gemologist, "宝石鑑定家", TitleCategory.Forging,
+            $"全{Gems.All.Length}種類の宝石を手に入れる", p => p.GemsSeen.Distinct().Count() >= Gems.All.Length),
+        new(TitleId.JewellersFriend, "宝飾ギルドの友", TitleCategory.Forging,
+            "宝石調達の依頼を5件こなす", p => p.Counters.GemQuestsCompleted >= 5),
     ];
 
     /// <summary>

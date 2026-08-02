@@ -197,10 +197,33 @@ public sealed class Player
 
     // ---- Ore and the forge -----------------------------------------------------------------------
 
+    /// <summary>
+    /// Every kind of stone this adventurer has ever held, whether or not they still have it. Kept because the
+    /// gems themselves are spent — handed to whoever commissioned them, or sold — so counting what is in the
+    /// bag could never tell you that all thirteen had been seen.
+    /// </summary>
+    public List<Gem> GemsSeen { get; set; } = new();
+
+    public void RecordGem(Gem gem)
+    {
+        Counters.GemsFound++;
+        if (!GemsSeen.Contains(gem))
+            GemsSeen.Add(gem);
+    }
+
     public int MaterialCount(Metal metal) => Materials.GetValueOrDefault(metal);
 
-    public void AddMaterial(Metal metal, int count = 1) =>
+    public void AddMaterial(Metal metal, int count = 1)
+    {
         Materials[metal] = MaterialCount(metal) + count;
+        Counters.MaterialsGathered += count;
+    }
+
+    /// <summary>Spends ore. Used by the forge and by the guild's ore commissions.</summary>
+    public void SpendMaterial(Metal metal, int count)
+    {
+        Materials[metal] = Math.Max(0, MaterialCount(metal) - count);
+    }
 
     public bool HasCrafted(string recipeId) => CraftedRecipes.Contains(recipeId);
 
@@ -216,10 +239,11 @@ public sealed class Player
     {
         Gold -= recipe.GoldCost;
         foreach (var (metal, count) in recipe.Cost)
-            Materials[metal] = MaterialCount(metal) - count;
+            SpendMaterial(metal, count);
 
         var item = recipe.Create();
         Bag.Add(item);
+        Counters.ItemsForged++;
         if (!CraftedRecipes.Contains(recipe.Id))
             CraftedRecipes.Add(recipe.Id);
         return item;

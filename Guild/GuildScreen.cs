@@ -14,6 +14,9 @@ public sealed class GuildScreen : IScreen
     private string? _message;
     private List<TitleDefinition> _newTitles = new();
 
+    /// <summary>Which row of the award popup is highlighted. Starts on "変更しない", the last row.</summary>
+    private int _titleCursor;
+
     /// <summary>A contract that ran out of days while you were away; cleared once acknowledged.</summary>
     private QuestFailure? _questFailure;
 
@@ -37,7 +40,11 @@ public sealed class GuildScreen : IScreen
         // guild recognising your work on your return is where the announcement belongs anyway.
         _newTitles = Titles.Refresh(player);
         if (_newTitles.Count > 0)
+        {
             ctx.Audio.Play(SoundId.TitleFanfare);
+            // On "変更しない", so a stray confirm never silently replaces the title you chose to wear.
+            _titleCursor = TitleAwardPopup.RowCount(_newTitles) - 1;
+        }
 
         _cursor = 0;
         SaveManager.Save(player);
@@ -98,11 +105,25 @@ public sealed class GuildScreen : IScreen
             return;
         }
 
-        // Newly awarded titles are acknowledged before anything else can be done.
+        // Newly awarded titles are acknowledged before anything else can be done — and answered, since the
+        // popup now asks which of them to wear rather than just announcing them.
         if (_newTitles.Count > 0)
         {
+            _titleCursor = MenuNav.Move(input, _titleCursor, TitleAwardPopup.RowCount(_newTitles));
             if (MenuNav.Confirmed(input))
+            {
+                if (TitleAwardPopup.Chosen(_newTitles, _titleCursor) is { } picked)
+                {
+                    player.DisplayedTitle = picked;
+                    _message = $"「{Titles.NameOf(picked)}」を掲げました";
+                    // Written straight away. The guild only saves on arrival, and the answer to this question
+                    // is given after that — so without this, quitting from the counter would throw the choice
+                    // away and the player would come back wearing whatever they had before.
+                    SaveManager.Save(player);
+                }
                 _newTitles = new List<TitleDefinition>();
+                _titleCursor = 0;
+            }
             return;
         }
 
@@ -203,7 +224,7 @@ public sealed class GuildScreen : IScreen
             if (_questFailure is { } failed)
                 QuestFailedPopup.Draw(ctx, failed);
             else if (_newTitles.Count > 0)
-                TitleAwardPopup.Draw(ctx, _newTitles);
+                TitleAwardPopup.Draw(ctx, _newTitles, _titleCursor);
             return;
         }
 
@@ -255,7 +276,7 @@ public sealed class GuildScreen : IScreen
         if (_questFailure is { } expired)
             QuestFailedPopup.Draw(ctx, expired);
         else if (_newTitles.Count > 0)
-            TitleAwardPopup.Draw(ctx, _newTitles);
+            TitleAwardPopup.Draw(ctx, _newTitles, _titleCursor);
     }
 
     /// <summary>

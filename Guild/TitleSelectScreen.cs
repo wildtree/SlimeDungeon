@@ -134,16 +134,19 @@ public sealed class TitleSelectScreen : IScreen
                 : displayed ? Colors.Gold : owned ? Colors.White : Colors.Rgb(96, 92, 88);
             fonts.DrawText(r.Handle, marker, 22, y + 2, 10, markerColor);
 
+            // An unearned title gives away nothing at all — not its name and not what earns it. The register
+            // says how many there are to find and no more; discovering that a thing is even possible is meant
+            // to be part of playing, rather than a checklist handed over on day one.
+            var name = owned ? title.Name : "？？？";
             var nameColor = selected ? Colors.Black : owned ? Colors.White : Colors.Rgb(104, 100, 96);
+
             // "ドラゴンスライムスレイヤー" is long enough to run into the requirement column beside it, so a
             // name that does not fit is set a little smaller rather than allowed to collide.
             var nameSize = 12f;
-            while (nameSize > 9f && fonts.Measure(title.Name, nameSize).Item1 > NameColumnWidth)
+            while (nameSize > 9f && fonts.Measure(name, nameSize).Item1 > NameColumnWidth)
                 nameSize -= 0.5f;
-            fonts.DrawText(r.Handle, title.Name, 40, y + 1 + (12f - nameSize) * 0.5f, nameSize, nameColor);
+            fonts.DrawText(r.Handle, name, 40, y + 1 + (12f - nameSize) * 0.5f, nameSize, nameColor);
 
-            // An earned title reads as a record of the deed that won it. An unearned one keeps its condition
-            // to itself — finding out what earns a title is meant to be part of the discovery, not a checklist.
             var note = owned ? title.Requirement : "？？？";
             var noteColor = selected
                 ? Colors.Rgb(60, 50, 20)

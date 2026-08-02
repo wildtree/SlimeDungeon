@@ -36,6 +36,10 @@ public static class Bounty
         SlimeColor.Bronze or SlimeColor.Iron or SlimeColor.Copper or SlimeColor.Silver
             or SlimeColor.Mithril or SlimeColor.Adamantite or SlimeColor.Orichalcum => 4.0,
 
+        // Rarer than the metals and only found from rank B up, but the money is in the stone rather than in
+        // the bounty, so the desk pays a premium without paying a fortune.
+        SlimeColor.Gem => 6.0,
+
         // There is no going rate for a dragon slime. The guild pays what it has, and it is still not enough.
         SlimeColor.Dragon => 100.0,
 

@@ -206,8 +206,8 @@ public static class DungeonGenerator
 
         foreach (var (x, y) in candidates)
         {
-            var color = Slime.RollColor(map.DungeonElement, map.DungeonRank);
-            var slime = Slime.Create(color, map.DungeonRank, map.DungeonElement);
+            var (color, gem) = Slime.Roll(map.DungeonElement, map.DungeonRank);
+            var slime = Slime.Create(color, map.DungeonRank, map.DungeonElement, gem);
             var moveTimer = (float)(rnd.NextDouble() * 2.4 + 1.2);
             map.Slimes.Add(new RoamingSlime { X = x, Y = y, Slime = slime, MoveTimer = moveTimer });
         }

@@ -25,6 +25,15 @@ public sealed class Slime
     public bool IsMetal => Metals.IsMetalSlime(Color);
 
     /// <summary>
+    /// The stone grown in this one's core, for a gem slime. Null on everything else. It decides the slime's
+    /// colour on the map as well as what it drops, so a hunter after one particular commission can pick their
+    /// target out from across the room.
+    /// </summary>
+    public Gem? Gem { get; init; }
+
+    public bool IsGem => Color == SlimeColor.Gem;
+
+    /// <summary>
     /// The mutant found alone in the deepest dungeons. Nothing but slime-forged gear touches it, and nothing
     /// but a full set of slime-forged armour survives it.
     /// </summary>
@@ -113,22 +122,30 @@ public sealed class Slime
     ];
 
     /// <summary>
-    /// Picks what turns up. A dungeon whose rank has an ore in it yields the matching metal slime a small part
-    /// of the time; everything else falls through to the ordinary roll untouched.
+    /// Picks what turns up, and for a gem slime which stone it grew around.
+    ///
+    /// The two rare species are drawn first and independently of the ordinary roll, which is what keeps Poison,
+    /// Gold and White exactly as rare as everything else was balanced against. A dungeon at an ore's rank
+    /// yields metal a small part of the time; one at a gem's rank, and of an element that gem can form in,
+    /// yields a gem slime rather more rarely still.
     /// </summary>
-    public static SlimeColor RollColor(Element? dungeonElement, Rank dungeonRank)
+    public static (SlimeColor Color, Gem? Gem) Roll(Element? dungeonElement, Rank dungeonRank)
     {
         var rnd = RandomUtil.Shared;
 
         if (Metals.ForRank(dungeonRank) is { } ore && rnd.NextDouble() < Metals.SlimeSpawnChance)
-            return ore.Slime;
+            return (ore.Slime, null);
+
+        var gems = Gems.Available(dungeonRank, dungeonElement).ToArray();
+        if (gems.Length > 0 && rnd.NextDouble() < Gems.SlimeSpawnChance)
+            return (SlimeColor.Gem, gems[rnd.Next(gems.Length)].Gem);
 
         var favored = FavoredColorFor(dungeonElement);
         if (rnd.NextDouble() < FavoredColorChance)
-            return favored;
+            return (favored, null);
 
         var others = OrdinaryColors.Where(c => c != favored).ToArray();
-        return others[rnd.Next(others.Length)];
+        return (others[rnd.Next(others.Length)], null);
     }
 
     public static SlimeColor FavoredColorFor(Element? dungeonElement) =>
@@ -194,10 +211,18 @@ public sealed class Slime
         _ => Element.None,
     };
 
-    public static Slime Create(SlimeColor color, Rank dungeonRankMedian, Element? dungeonElement)
+    public static Slime Create(SlimeColor color, Rank dungeonRankMedian, Element? dungeonElement, Gem? gem = null)
     {
-        var rank = RandomUtil.SampleRank(dungeonRankMedian, 0.5, 1);
-        var element = ElementForColor(color);
+        // A gem slime is pinned to the rank of the stone it grew around rather than sampled around the
+        // dungeon's median. The stone only forms at one depth, so a B-rank gem in an A-rank body would be a
+        // contradiction — and it is what the commission for that gem is priced against.
+        var rank = gem is { } g
+            ? Gems.Get(g).Rank
+            : RandomUtil.SampleRank(dungeonRankMedian, 0.5, 1);
+
+        // Likewise its element is the stone's, not the dungeon's, so the matchup a player prepares for is the
+        // one they can read off the gem they are hunting.
+        var element = gem is { } ge ? Gems.Get(ge).Element : ElementForColor(color);
         var stats = BaselineForRank(rank);
 
         // A white slime is built like the rank above it — that, and its defence, is what puts it out of reach
@@ -215,7 +240,11 @@ public sealed class Slime
         // while hitting 20% harder, which is a straight difficulty increase nobody asked for. So the elemental
         // character of a dungeon now lives entirely where the design puts it — in the matchup that moves an
         // attack up or down a rank — and a slime's own numbers come from its rank and nothing else.
-        return new Slime { Color = color, Element = element, Rank = rank, Stats = stats, DisplayLabel = color.ToString() };
+        return new Slime
+        {
+            Color = color, Element = element, Rank = rank, Stats = stats, Gem = gem,
+            DisplayLabel = color.ToString(),
+        };
     }
 
     /// <summary>What a white slime is worth relative to any other slime of its rank — it is far harder to

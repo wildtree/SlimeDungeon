@@ -40,6 +40,6 @@ public sealed class GameOverScreen : IScreen
 
         ctx.Fonts.DrawText(r.Handle, $"{name}は力尽きた…", 200, 140, 20, Colors.White);
         ctx.Fonts.DrawText(r.Handle, $"到達ランク: {rank}  LV {level}", 220, 190, 13, Colors.Highlight);
-        ctx.Fonts.DrawText(r.Handle, "Enterでタイトルへ", 250, 240, 12, Colors.Border);
+        ControlHints.Draw(ctx, 250, 240, 12, Colors.Border, ControlHints.Confirm("タイトルへ"));
     }
 }

@@ -22,6 +22,10 @@ public enum ItemCategory
 
     /// <summary>Scattered underfoot: hurts everything standing on it and slows what survives.</summary>
     Caltrops,
+
+    /// <summary>A stone cut out of a gem slime's core. Not used for anything — sold, or handed to whoever
+    /// commissioned it.</summary>
+    Gemstone,
 }
 
 public enum WeaponKind { Sword, Wand }
@@ -70,6 +74,9 @@ public sealed class Item
     /// bought, found or started with.
     /// </summary>
     public string? ForgeId { get; init; }
+
+    /// <summary>Which stone this is, for <see cref="ItemCategory.Gemstone"/>. Null on everything else.</summary>
+    public Gem? Gem { get; init; }
 
     /// <summary>Gear that occupies one of the six body slots.
     /// Weapon/Shield may go in either hand (the player picks); everything else has one fixed slot.</summary>
@@ -135,5 +142,6 @@ public sealed class Item
         SpellTaught = SpellTaught,
         PotionKind = PotionKind,
         ForgeId = ForgeId,
+        Gem = Gem,
     };
 }

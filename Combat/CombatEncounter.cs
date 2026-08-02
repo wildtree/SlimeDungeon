@@ -31,6 +31,9 @@ public sealed class CombatEncounter
     /// <summary>Ore prised out of the metal slimes killed here, for the end-of-battle summary.</summary>
     public List<Metal> MaterialsFound { get; } = new();
 
+    /// <summary>Stones cut out of the gem slimes killed here.</summary>
+    public List<Gem> GemsFound { get; } = new();
+
     /// <summary>Set on victory when the EXP award pushed the player up at least one level; null otherwise.</summary>
     public LevelUpSummary? LevelUp { get; private set; }
 
@@ -527,6 +530,23 @@ public sealed class CombatEncounter
                 Player.AddMaterial(ore.Metal);
                 MaterialsFound.Add(ore.Metal);
                 AddLog($"{ore.Name}の素材を手に入れた！");
+            }
+
+            // A gem is a solid thing in the middle of a creature that has just been hit hard, so it does not
+            // always survive. Unlike ore it takes a bag slot, and a full bag means watching it go.
+            if (e.Gem is { } gem && RandomUtil.Shared.NextDouble() < Gems.DropChance)
+            {
+                if (Player.BagHasRoom)
+                {
+                    Player.Bag.Add(ItemFactory.CreateGem(gem));
+                    Player.RecordGem(gem);
+                    GemsFound.Add(gem);
+                    AddLog($"{Gems.NameOf(gem)}を手に入れた！");
+                }
+                else
+                {
+                    AddLog($"{Gems.NameOf(gem)}が出てきたが、鞄がいっぱいだ…");
+                }
             }
         }
 

@@ -23,4 +23,16 @@ public sealed class PlayerCounters
 
     /// <summary>Gold taken in over the whole career, never reduced by spending.</summary>
     public int GoldEarned { get; set; }
+
+    /// <summary>Pieces of ore prised out of metal slimes, counted as they drop rather than as they are spent.</summary>
+    public int MaterialsGathered { get; set; }
+
+    /// <summary>Pieces that have come off the guild's anvil, counting a second bronze sword as a second piece.</summary>
+    public int ItemsForged { get; set; }
+
+    /// <summary>Stones cut out of gem slimes.</summary>
+    public int GemsFound { get; set; }
+
+    public int GemQuestsCompleted { get; set; }
+    public int MetalQuestsCompleted { get; set; }
 }

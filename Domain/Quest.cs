@@ -2,7 +2,7 @@ using SlimeDungeon.Core;
 
 namespace SlimeDungeon.Domain;
 
-public enum QuestType { CollectHerb, CollectAntidote, DefeatSlime }
+public enum QuestType { CollectHerb, CollectAntidote, DefeatSlime, CollectGem, CollectMetal }
 
 /// <summary>A guild quest: either "bring N of an item" (checked against the bag at report time)
 /// or "defeat N of a slime species" (progress ticked live by combat while the quest is active).</summary>
@@ -21,13 +21,33 @@ public sealed class Quest
     public SlimeColor? TargetSlimeColor { get; init; }
     public Rank? TargetItemRank { get; init; }
 
+    /// <summary>The stone a gem commission is after. The rank comes from the gem, so this is the whole spec.</summary>
+    public Gem? TargetGem { get; init; }
+
+    /// <summary>The ore an ore commission is after.</summary>
+    public Metal? TargetMetal { get; init; }
+
+    /// <summary>
+    /// Who wants it. Gem commissions do not come from the guild's usual clientele — a noble house or a trading
+    /// concern puts them up, which is why they pay what they pay — and naming them is most of the flavour.
+    /// </summary>
+    public string? Client { get; init; }
+
     /// <summary>How far along the quest is: slimes defeated, or items handed in so far.</summary>
     public int Progress { get; set; }
 
     public bool IsExpired(int currentDay) => currentDay > DeadlineDay;
 
     /// <summary>Collection quests are fulfilled by handing items over the counter, not by fighting.</summary>
-    public bool IsCollection => Type is QuestType.CollectHerb or QuestType.CollectAntidote;
+    public bool IsCollection =>
+        Type is QuestType.CollectHerb or QuestType.CollectAntidote or QuestType.CollectGem or QuestType.CollectMetal;
+
+    /// <summary>
+    /// Ore is handed over from the pouch rather than out of the bag, so it takes a different route through
+    /// delivery than every other collection job. It never occupies a bag slot, which is exactly why a
+    /// "bring me six" contract is possible at all — six of anything else would not fit.
+    /// </summary>
+    public bool IsMetalDelivery => Type == QuestType.CollectMetal;
 
     /// <summary>Broad kind of job, for the board's first column.</summary>
     public string CategoryLabel => Type switch
@@ -35,6 +55,8 @@ public sealed class Quest
         QuestType.CollectHerb => "薬草採取",
         QuestType.CollectAntidote => "毒消し草採取",
         QuestType.DefeatSlime => "スライム討伐",
+        QuestType.CollectGem => "宝石調達",
+        QuestType.CollectMetal => "鉱石採取",
         _ => "依頼",
     };
 
@@ -46,6 +68,8 @@ public sealed class Quest
     public string DetailLabel => Type switch
     {
         QuestType.CollectHerb or QuestType.CollectAntidote => $"{TargetCount}本",
+        QuestType.CollectGem => TargetGem is { } g ? $"{Gems.NameOf(g)} {TargetCount}個" : $"{TargetCount}個",
+        QuestType.CollectMetal => TargetMetal is { } m ? $"{Metals.Get(m).OreName} {TargetCount}個" : $"{TargetCount}個",
         QuestType.DefeatSlime => TargetSlimeColor is { } c ? $"{SlimeNames.Of(c)} {TargetCount}体" : $"{TargetCount}体",
         _ => $"{TargetCount}",
     };
@@ -59,6 +83,7 @@ public sealed class Quest
     {
         QuestType.CollectHerb => ItemCategory.Herb,
         QuestType.CollectAntidote => ItemCategory.Antidote,
+        QuestType.CollectGem => ItemCategory.Gemstone,
         _ => null,
     };
 
@@ -68,9 +93,26 @@ public sealed class Quest
     /// had gone missing.
     /// </summary>
     public int DeliverableInBag(Player player) =>
-        DeliveryCategory is { } category
-            ? player.CarriedItems.Count(i => i.Category == category && i.Rank == TargetItemRank)
-            : 0;
+        IsMetalDelivery
+            ? (TargetMetal is { } metal ? player.MaterialCount(metal) : 0)
+            : player.CarriedItems.Count(Accepts);
+
+    /// <summary>
+    /// Whether one carried item counts towards this contract.
+    ///
+    /// Gems need more than the category and rank a herb needs: four different stones share rank S, so matching
+    /// on rank alone would let a ruby settle a commission for a sapphire. The stone itself is the identity.
+    /// </summary>
+    private bool Accepts(Item item)
+    {
+        if (DeliveryCategory is not { } category || item.Category != category)
+            return false;
+
+        if (Type == QuestType.CollectGem)
+            return item.Gem == TargetGem;
+
+        return item.Rank == TargetItemRank;
+    }
 
     /// <summary>
     /// Hands over as much as the player is carrying, up to what is still owed, and banks it against
@@ -84,14 +126,21 @@ public sealed class Quest
             return 0;
 
         var wanted = Math.Min(Remaining, DeliverableInBag(player));
-        if (wanted <= 0 || DeliveryCategory is not { } category)
+        if (wanted <= 0)
             return 0;
+
+        // Ore comes straight out of the pouch — there is nothing in the bag to take.
+        if (IsMetalDelivery && TargetMetal is { } metal)
+        {
+            player.SpendMaterial(metal, wanted);
+            Progress += wanted;
+            return wanted;
+        }
 
         // Hand over what is loose in the bag first, so a readied item is only broken out of its slot when the
         // contract still needs it.
-        var handed = player.Bag
-            .Where(i => i.Category == category && i.Rank == TargetItemRank)
-            .Concat(player.ReadiedItems.Where(i => i.Category == category && i.Rank == TargetItemRank))
+        var handed = player.Bag.Where(Accepts)
+            .Concat(player.ReadiedItems.Where(Accepts))
             .Take(wanted)
             .ToList();
 

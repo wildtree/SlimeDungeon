@@ -16,7 +16,7 @@ public static class BattleSummaryPopup
     private const int MaxRows = 6;
 
     public static void Draw(GameContext ctx, IReadOnlyList<Slime> defeated, IReadOnlyList<Slime> escaped, int exp,
-        IReadOnlyList<Metal>? materials = null)
+        IReadOnlyList<Metal>? materials = null, IReadOnlyList<Gem>? gems = null)
     {
         var r = ctx.Renderer;
         var fonts = ctx.Fonts;
@@ -25,9 +25,10 @@ public static class BattleSummaryPopup
         var shown = lines.Take(MaxRows).ToList();
         var hidden = lines.Count - shown.Count;
         var ore = materials is { Count: > 0 } ? materials : null;
+        var stones = gems is { Count: > 0 } ? gems : null;
 
         var panelH = 92f + shown.Count * 22f + (hidden > 0 ? 16f : 0f) + (escaped.Count > 0 ? 18f : 0f)
-                     + (ore is null ? 0f : 18f);
+                     + (ore is null ? 0f : 18f) + (stones is null ? 0f : 18f);
         var x = (640f - PanelW) / 2f;
         var y = (400f - panelH) / 2f;
 
@@ -82,6 +83,17 @@ public static class BattleSummaryPopup
                 .GroupBy(m => m)
                 .Select(g => g.Count() > 1 ? $"{Metals.Get(g.Key).Name}×{g.Count()}" : Metals.Get(g.Key).Name));
             DrawCentered(ctx, $"素材入手: {haul}", cx, ry, 10, Colors.Gold);
+            ry += 18f;
+        }
+
+        // A gem does go into the bag, but it is the rarest thing in the game and easily lost in a scrolling
+        // battle log, so it gets its own line here too.
+        if (stones is not null)
+        {
+            var haul = string.Join("、", stones
+                .GroupBy(g => g)
+                .Select(g => g.Count() > 1 ? $"{Gems.NameOf(g.Key)}×{g.Count()}" : Gems.NameOf(g.Key)));
+            DrawCentered(ctx, $"宝石入手: {haul}", cx, ry, 10, Colors.Rgb(150, 220, 250));
             ry += 18f;
         }
 

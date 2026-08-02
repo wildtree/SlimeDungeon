@@ -171,6 +171,8 @@ public sealed class QuestBoardScreen : IScreen
             case QuestType.CollectHerb: player.Counters.HerbQuestsCompleted++; break;
             case QuestType.CollectAntidote: player.Counters.AntidoteQuestsCompleted++; break;
             case QuestType.DefeatSlime: player.Counters.SlayQuestsCompleted++; break;
+            case QuestType.CollectGem: player.Counters.GemQuestsCompleted++; break;
+            case QuestType.CollectMetal: player.Counters.MetalQuestsCompleted++; break;
         }
 
         player.ActiveQuest = null;
@@ -267,7 +269,8 @@ public sealed class QuestBoardScreen : IScreen
     private const float ColCategory = 40f;
     private const float ColRank = 108f;
     private const float ColDetail = 140f;
-    private const float ColDeadline = 226f;
+    // Widened for "ムーンストーン 1個", which is a good deal longer than "薬草 3本".
+    private const float ColDeadline = 244f;
     private const float ColRewardRight = 392f;
     private const float TableRowHeight = 20f;
 
@@ -312,11 +315,11 @@ public sealed class QuestBoardScreen : IScreen
                 selected ? Colors.Black : RankColor(q.Rank, player.Rank));
             fonts.DrawText(r.Handle, q.DetailLabel, ColDetail, y + 2, 10, text);
 
-            // The month and day without the era, which the days-remaining count disambiguates anyway — the
-            // full date does not fit alongside the reward column.
-            var due = GameCalendar.FromDayNumber(q.DeadlineDay);
+            // Days remaining only. The date used to be here too, but a gem commission pays five figures and
+            // its reward ran back into the date; the days left is the number that drives the decision anyway,
+            // and the accepted-quest screen above still gives the full calendar date.
             var left = q.DeadlineDay - player.DayCount;
-            fonts.DrawText(r.Handle, $"{due.MonthName}{due.Day}日 (あと{left}日)", ColDeadline, y + 4, 8,
+            fonts.DrawText(r.Handle, left < 0 ? "期限切れ" : $"あと{left}日", ColDeadline, y + 4, 9,
                 selected ? Colors.Rgb(60, 50, 20) : DeadlineColor(q, player));
 
             DrawRight(ctx, $"{q.RewardGold}G / EXP{q.RewardExp}", ColRewardRight, y + 2, 9,
@@ -398,11 +401,14 @@ public sealed class QuestBoardScreen : IScreen
 
         if (q.IsCollection)
         {
-            var inBag = q.DeliverableInBag(player);
-            var text = inBag > 0
-                ? $"鞄に{inBag}個 → 納品できます"
-                : "鞄に該当する物がありません";
-            fonts.DrawText(r.Handle, text, x, y + 16, 10, inBag > 0 ? Colors.Rgb(140, 220, 140) : Colors.Border);
+            var held = q.DeliverableInBag(player);
+            // Ore is kept in its own pouch and never touches the bag, so saying "in your bag" about it would
+            // send the player looking somewhere it can never be.
+            var where = q.IsMetalDelivery ? "素材ポーチ" : "鞄";
+            var text = held > 0
+                ? $"{where}に{held}個 → 納品できます"
+                : $"{where}に該当する物がありません";
+            fonts.DrawText(r.Handle, text, x, y + 16, 10, held > 0 ? Colors.Rgb(140, 220, 140) : Colors.Border);
         }
     }
 }

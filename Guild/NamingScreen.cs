@@ -92,7 +92,7 @@ public sealed class NamingScreen : IScreen
 
         if (_phase == Phase.Input)
         {
-            fonts.DrawText(r.Handle, "文字を入力しEnterで決定", panelX, 258, 10, Colors.Border);
+            fonts.DrawText(r.Handle, "文字を入力してください", panelX, 258, 10, Colors.Border);
             fonts.DrawText(r.Handle, "（左右キーで性別変更）", panelX, 272, 10, Colors.Border);
         }
         else
