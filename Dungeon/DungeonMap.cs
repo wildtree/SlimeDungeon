@@ -13,6 +13,34 @@ public sealed class Chest
     public bool IsMimic { get; init; }
     public List<Item> Items { get; init; } = new();
     public int Gold { get; set; }
+
+    /// <summary>
+    /// Empties as much of this chest into the player as will fit, and reports what was taken.
+    ///
+    /// Gold always goes in — it takes no room. Items go in while the bag has slots, and whatever is left stays
+    /// in the chest, which then stays *shut*: a chest with something still in it should look like somewhere
+    /// worth coming back to, not like an empty box. That is also what makes declining the swap prompt free —
+    /// nothing is touched until this is called.
+    /// </summary>
+    public (int Gold, List<Item> Taken) TakeInto(Player player)
+    {
+        var gold = Gold;
+        if (gold > 0)
+            player.EarnGold(gold);
+        Gold = 0;
+
+        var taken = new List<Item>();
+        while (Items.Count > 0 && player.BagHasRoom)
+        {
+            var item = Items[0];
+            Items.RemoveAt(0);
+            player.Bag.Add(item);
+            taken.Add(item);
+        }
+
+        Opened = Items.Count == 0;
+        return (gold, taken);
+    }
 }
 
 public sealed class RoamingSlime

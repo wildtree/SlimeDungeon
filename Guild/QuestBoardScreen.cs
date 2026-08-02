@@ -402,12 +402,9 @@ public sealed class QuestBoardScreen : IScreen
         if (q.IsCollection)
         {
             var held = q.DeliverableInBag(player);
-            // Ore is kept in its own pouch and never touches the bag, so saying "in your bag" about it would
-            // send the player looking somewhere it can never be.
-            var where = q.IsMetalDelivery ? "素材ポーチ" : "鞄";
             var text = held > 0
-                ? $"{where}に{held}個 → 納品できます"
-                : $"{where}に該当する物がありません";
+                ? $"鞄に{held}個 → 納品できます"
+                : "鞄に該当する物がありません";
             fonts.DrawText(r.Handle, text, x, y + 16, 10, held > 0 ? Colors.Rgb(140, 220, 140) : Colors.Border);
         }
     }

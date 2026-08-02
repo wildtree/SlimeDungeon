@@ -317,7 +317,7 @@ public sealed class SpriteFactory : IDisposable
     private enum ItemIconKey
     {
         Unknown, Sword, Wand, Shield, Armor, Helmet, Gauntlet, Shoes,
-        Bag, Herb, Antidote, HpPotion, MpPotion, Scroll, Map, Firecracker, Caltrops, Gemstone,
+        Bag, Herb, Antidote, HpPotion, MpPotion, Scroll, Map, Firecracker, Caltrops, Gemstone, Material,
     }
 
     private static ItemIconKey IconKeyFor(Item item) => item.Category switch
@@ -337,6 +337,7 @@ public sealed class SpriteFactory : IDisposable
         ItemCategory.Firecracker => ItemIconKey.Firecracker,
         ItemCategory.Caltrops => ItemIconKey.Caltrops,
         ItemCategory.Gemstone => ItemIconKey.Gemstone,
+        ItemCategory.Material => ItemIconKey.Material,
         _ => ItemIconKey.Unknown,
     };
 
@@ -488,6 +489,27 @@ public sealed class SpriteFactory : IDisposable
                 Spike(4, 7);
                 Spike(11, 6);
                 Spike(8, 12);
+                break;
+            }
+
+            case ItemIconKey.Material:
+            {
+                // A rough lump of ore: an irregular mass with a couple of bright flecks of metal showing
+                // through the rock, so it reads as raw material rather than as a finished ingot.
+                var rock = Colors.Rgb(104, 92, 78);
+                var rockDark = Colors.Rgb(66, 58, 48);
+                var vein = Colors.Rgb(206, 168, 96);
+
+                c.FillRect(4, 7, 8, 6, rock);
+                c.FillRect(5, 5, 6, 2, rock);
+                c.FillRect(3, 9, 1, 3, rock);
+                c.FillRect(12, 8, 1, 4, rock);
+                c.FillRect(4, 12, 8, 1, rockDark);
+                c.FillRect(5, 11, 6, 1, rockDark);
+
+                c.FillRect(6, 7, 2, 2, vein);
+                c.FillRect(9, 9, 2, 1, vein);
+                c.FillRect(5, 9, 1, 1, vein);
                 break;
             }
 

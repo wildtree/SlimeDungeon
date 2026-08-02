@@ -8,7 +8,7 @@ namespace SlimeDungeon.Combat;
 
 public sealed class CombatScreen : IScreen
 {
-    private enum Phase { Menu, TargetSelect, SpellSelect, ItemSelect, RoundResolved, BattleEnd, BattleSummary, LevelUpSummary }
+    private enum Phase { Menu, TargetSelect, SpellSelect, ItemSelect, RoundResolved, BattleEnd, BattleSummary, LevelUpSummary, Overflow }
     private enum MenuCommand { Attack, Magic, Item, Flee }
 
     private readonly IScreen _dungeonScreen;
@@ -150,15 +150,71 @@ public sealed class CombatScreen : IScreen
                     }
                     else
                     {
-                        ctx.Screens.ChangeTo(_dungeonScreen);
+                        LeaveBattle(ctx);
                     }
                 }
                 break;
             case Phase.LevelUpSummary:
                 if (MenuNav.Confirmed(input))
-                    ctx.Screens.ChangeTo(_dungeonScreen);
+                    LeaveBattle(ctx);
+                break;
+            case Phase.Overflow:
+                UpdateOverflow(ctx, input);
                 break;
         }
+    }
+
+    private int _overflowCursor;
+
+    /// <summary>
+    /// Leaves for the dungeon — unless something dropped that would not fit, in which case that is settled
+    /// first. Loot is held back rather than discarded, so this is the last chance to make room for it.
+    /// </summary>
+    private void LeaveBattle(GameContext ctx)
+    {
+        if (_battle.Overflow.Count > 0)
+        {
+            _phase = Phase.Overflow;
+            // On "give it up", so a stray confirm never throws away something already carried.
+            _overflowCursor = OverflowPopup.RowCount(ctx.Player!);
+            return;
+        }
+
+        ctx.Screens.ChangeTo(_dungeonScreen);
+    }
+
+    /// <summary>One find at a time: pick something to throw away for it, or let it go.</summary>
+    private void UpdateOverflow(GameContext ctx, InputManager input)
+    {
+        var player = ctx.Player!;
+        if (_battle.Overflow.Count == 0)
+        {
+            ctx.Screens.ChangeTo(_dungeonScreen);
+            return;
+        }
+
+        _overflowCursor = MenuNav.Move(input, _overflowCursor, OverflowPopup.RowCount(player));
+        if (!MenuNav.Confirmed(input))
+            return;
+
+        var incoming = _battle.Overflow[0];
+        if (OverflowPopup.Chosen(player, _overflowCursor) is { } discarded)
+        {
+            player.Bag.Remove(discarded);
+            player.Bag.Add(incoming);
+
+            // Counted here rather than at the drop, so ore only ever counts once it is genuinely in hand.
+            if (incoming is { Category: ItemCategory.Material, Metal: { } metal })
+                player.Counters.MaterialsGathered++;
+            else if (incoming is { Category: ItemCategory.Gemstone, Gem: { } gem })
+                player.RecordGem(gem);
+        }
+
+        _battle.Overflow.RemoveAt(0);
+        _overflowCursor = OverflowPopup.RowCount(player);
+
+        if (_battle.Overflow.Count == 0)
+            ctx.Screens.ChangeTo(_dungeonScreen);
     }
 
     private static readonly string[] MenuLabels = { "たたかう", "まほう", "アイテム", "にげる" };
@@ -362,6 +418,8 @@ public sealed class CombatScreen : IScreen
                 _battle.MaterialsFound, _battle.GemsFound);
         else if (_phase == Phase.LevelUpSummary && _battle.LevelUp is { } levelUp)
             LevelUpPopup.Draw(ctx, levelUp);
+        else if (_phase == Phase.Overflow && _battle.Overflow.Count > 0)
+            OverflowPopup.Draw(ctx, _battle.Overflow[0], _overflowCursor);
     }
 
     // Enemy block layout. The sprite's feet land on the backdrop's ground line, with the name and the two

@@ -79,9 +79,11 @@ public sealed class GuildScreen : IScreen
         Entry.Bounty => player.PendingBountyTotal > 0 ? $"討伐報酬 ({player.PendingBountyTotal}G)" : "討伐報酬",
         Entry.Shop => "ショップ",
         Entry.Potion => "ポーション調合",
-        // The ore count rides on the label for the same reason the bounty total does: material is invisible
-        // everywhere else, so without this you would have no idea a drop had happened until you came looking.
-        Entry.Forge => player.Materials.Values.Sum() is var ore && ore > 0 ? $"鍛冶 (素材{ore}個)" : "鍛冶",
+        // Ore carried and ore already left with the smith, so the label says at a glance whether there is
+        // anything to go in for.
+        Entry.Forge => Metals.All.Sum(m => player.AvailableMaterial(m.Metal)) is var ore && ore > 0
+            ? $"鍛冶 (素材{ore}個)"
+            : "鍛冶",
         Entry.Dungeon => "ダンジョンへ",
         Entry.Heal => $"回復 ({HealCost(player)}G)",
         Entry.Titles => "称号",

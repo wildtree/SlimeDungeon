@@ -47,9 +47,12 @@ public sealed class Player
     public PlayerCounters Counters { get; set; } = new();
 
     /// <summary>
-    /// Ore prised out of metal slimes, waiting on the smith. Kept in a pouch of its own rather than in the bag:
-    /// material is worthless to carry and worthless to sell, and making it compete with loot for the two or
-    /// three slots a bag has would turn a lucky drop into a decision about what to leave behind.
+    /// Ore left with the guild's smith for safekeeping.
+    ///
+    /// Ore itself rides in the bag now — it competes for space, sells at the shop and settles commissions like
+    /// anything else. This is the store you can hand it to instead, which frees the slot but takes it out of
+    /// circulation: what is in here can be forged with and nothing else. It cannot be sold and it cannot be
+    /// delivered, which is the price of not carrying it.
     /// </summary>
     public Dictionary<Metal, int> Materials { get; set; } = new();
 
@@ -211,25 +214,74 @@ public sealed class Player
             GemsSeen.Add(gem);
     }
 
-    public int MaterialCount(Metal metal) => Materials.GetValueOrDefault(metal);
+    /// <summary>Ore in the bag, which is the only ore that can be sold or handed to a commission.</summary>
+    public int CarriedMaterial(Metal metal) =>
+        Bag.Where(i => i.Category == ItemCategory.Material && i.Metal == metal).Sum(i => i.Quantity);
 
-    public void AddMaterial(Metal metal, int count = 1)
+    /// <summary>Ore left with the smith. Reachable by the forge and by nothing else.</summary>
+    public int DepositedMaterial(Metal metal) => Materials.GetValueOrDefault(metal);
+
+    /// <summary>Everything the forge could draw on: what is carried plus what is stored.</summary>
+    public int AvailableMaterial(Metal metal) => CarriedMaterial(metal) + DepositedMaterial(metal);
+
+    /// <summary>
+    /// Takes ore into the bag, stacking onto a pile of the same metal if one is there. Returns false when
+    /// there is no room and no existing stack to add to — the caller then has to decide what to throw away.
+    /// </summary>
+    public bool TryTakeMaterial(Metal metal)
     {
-        Materials[metal] = MaterialCount(metal) + count;
-        Counters.MaterialsGathered += count;
+        var stack = Bag.FirstOrDefault(i => i.Category == ItemCategory.Material && i.Metal == metal);
+        if (stack is null && !BagHasRoom)
+            return false;
+
+        if (stack is null)
+            Bag.Add(ItemFactory.CreateMaterial(metal));
+        else
+            stack.Quantity++;
+
+        Counters.MaterialsGathered++;
+        return true;
     }
 
-    /// <summary>Spends ore. Used by the forge and by the guild's ore commissions.</summary>
-    public void SpendMaterial(Metal metal, int count)
+    /// <summary>Hands one piece of carried ore to the smith to keep. Returns false if none is being carried.</summary>
+    public bool DepositMaterial(Metal metal)
     {
-        Materials[metal] = Math.Max(0, MaterialCount(metal) - count);
+        var stack = Bag.FirstOrDefault(i => i.Category == ItemCategory.Material && i.Metal == metal);
+        if (stack is null)
+            return false;
+
+        ConsumeOne(stack);
+        Materials[metal] = DepositedMaterial(metal) + 1;
+        return true;
     }
 
     public bool HasCrafted(string recipeId) => CraftedRecipes.Contains(recipeId);
 
-    /// <summary>Whether the ore and the gold are both in hand.</summary>
+    /// <summary>Whether the ore and the gold are both to hand, counting the smith's store as well as the bag.</summary>
     public bool CanForge(ForgeRecipe recipe) =>
-        Gold >= recipe.GoldCost && recipe.Cost.All(c => MaterialCount(c.Key) >= c.Value);
+        Gold >= recipe.GoldCost && recipe.Cost.All(c => AvailableMaterial(c.Key) >= c.Value);
+
+    /// <summary>
+    /// Spends ore on a piece of work: out of the smith's store first, then out of the bag. That order is
+    /// deliberate — stored ore has no other use, so burning it first leaves whatever is still being carried
+    /// free to be sold or handed to a commission.
+    /// </summary>
+    private void SpendMaterialForForge(Metal metal, int count)
+    {
+        var fromStore = Math.Min(count, DepositedMaterial(metal));
+        if (fromStore > 0)
+            Materials[metal] = DepositedMaterial(metal) - fromStore;
+
+        var remaining = count - fromStore;
+        while (remaining > 0)
+        {
+            var stack = Bag.FirstOrDefault(i => i.Category == ItemCategory.Material && i.Metal == metal);
+            if (stack is null)
+                break;
+            ConsumeOne(stack);
+            remaining--;
+        }
+    }
 
     /// <summary>
     /// Pays for a piece and hands it over. The gear goes straight into the bag, so the caller must have
@@ -239,7 +291,7 @@ public sealed class Player
     {
         Gold -= recipe.GoldCost;
         foreach (var (metal, count) in recipe.Cost)
-            SpendMaterial(metal, count);
+            SpendMaterialForForge(metal, count);
 
         var item = recipe.Create();
         Bag.Add(item);

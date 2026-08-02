@@ -34,6 +34,13 @@ public sealed class CombatEncounter
     /// <summary>Stones cut out of the gem slimes killed here.</summary>
     public List<Gem> GemsFound { get; } = new();
 
+    /// <summary>
+    /// Loot that had nowhere to go because the bag was full. Held rather than discarded so the player can be
+    /// asked what to throw away — deciding that in the middle of a fight is not something the game should do
+    /// on their behalf.
+    /// </summary>
+    public List<Item> Overflow { get; } = new();
+
     /// <summary>Set on victory when the EXP award pushed the player up at least one level; null otherwise.</summary>
     public LevelUpSummary? LevelUp { get; private set; }
 
@@ -527,13 +534,22 @@ public sealed class CombatEncounter
             // Most of a metal slime is slime. Only sometimes is there a usable piece of ore left in the mess.
             if (Metals.ForSlime(e.Color) is { } ore && RandomUtil.Shared.NextDouble() < Metals.MaterialDropChance)
             {
-                Player.AddMaterial(ore.Metal);
-                MaterialsFound.Add(ore.Metal);
-                AddLog($"{ore.Name}の素材を手に入れた！");
+                if (Player.TryTakeMaterial(ore.Metal))
+                {
+                    MaterialsFound.Add(ore.Metal);
+                    AddLog($"{ore.OreName}を手に入れた！");
+                }
+                else
+                {
+                    // No room. Rather than drop it on the floor, it is held back for the player to decide about
+                    // once the fighting is over — see CombatScreen's overflow prompt.
+                    Overflow.Add(ItemFactory.CreateMaterial(ore.Metal));
+                    AddLog($"{ore.OreName}が出てきたが、鞄がいっぱいだ");
+                }
             }
 
             // A gem is a solid thing in the middle of a creature that has just been hit hard, so it does not
-            // always survive. Unlike ore it takes a bag slot, and a full bag means watching it go.
+            // always survive.
             if (e.Gem is { } gem && RandomUtil.Shared.NextDouble() < Gems.DropChance)
             {
                 if (Player.BagHasRoom)
@@ -545,7 +561,8 @@ public sealed class CombatEncounter
                 }
                 else
                 {
-                    AddLog($"{Gems.NameOf(gem)}が出てきたが、鞄がいっぱいだ…");
+                    Overflow.Add(ItemFactory.CreateGem(gem));
+                    AddLog($"{Gems.NameOf(gem)}が出てきたが、鞄がいっぱいだ");
                 }
             }
         }

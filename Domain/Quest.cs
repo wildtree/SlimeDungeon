@@ -42,13 +42,6 @@ public sealed class Quest
     public bool IsCollection =>
         Type is QuestType.CollectHerb or QuestType.CollectAntidote or QuestType.CollectGem or QuestType.CollectMetal;
 
-    /// <summary>
-    /// Ore is handed over from the pouch rather than out of the bag, so it takes a different route through
-    /// delivery than every other collection job. It never occupies a bag slot, which is exactly why a
-    /// "bring me six" contract is possible at all — six of anything else would not fit.
-    /// </summary>
-    public bool IsMetalDelivery => Type == QuestType.CollectMetal;
-
     /// <summary>Broad kind of job, for the board's first column.</summary>
     public string CategoryLabel => Type switch
     {
@@ -84,6 +77,7 @@ public sealed class Quest
         QuestType.CollectHerb => ItemCategory.Herb,
         QuestType.CollectAntidote => ItemCategory.Antidote,
         QuestType.CollectGem => ItemCategory.Gemstone,
+        QuestType.CollectMetal => ItemCategory.Material,
         _ => null,
     };
 
@@ -92,10 +86,7 @@ public sealed class Quest
     /// a herb the player put in an item slot is still a herb, and not counting it would look like the delivery
     /// had gone missing.
     /// </summary>
-    public int DeliverableInBag(Player player) =>
-        IsMetalDelivery
-            ? (TargetMetal is { } metal ? player.MaterialCount(metal) : 0)
-            : player.CarriedItems.Count(Accepts);
+    public int DeliverableInBag(Player player) => player.CarriedItems.Where(Accepts).Sum(i => i.Quantity);
 
     /// <summary>
     /// Whether one carried item counts towards this contract.
@@ -110,6 +101,10 @@ public sealed class Quest
 
         if (Type == QuestType.CollectGem)
             return item.Gem == TargetGem;
+
+        // Likewise for ore: bronze and iron are both "material", so the metal itself is the identity.
+        if (Type == QuestType.CollectMetal)
+            return item.Metal == TargetMetal;
 
         return item.Rank == TargetItemRank;
     }
@@ -129,26 +124,21 @@ public sealed class Quest
         if (wanted <= 0)
             return 0;
 
-        // Ore comes straight out of the pouch — there is nothing in the bag to take.
-        if (IsMetalDelivery && TargetMetal is { } metal)
+        // Hand over what is loose in the bag first, so a readied item is only broken out of its slot when the
+        // contract still needs it. Ore stacks, so this counts pieces rather than entries.
+        var handed = 0;
+        foreach (var item in player.Bag.Where(Accepts).Concat(player.ReadiedItems.Where(Accepts)).ToList())
         {
-            player.SpendMaterial(metal, wanted);
-            Progress += wanted;
-            return wanted;
+            while (handed < wanted && item.Quantity > 0)
+            {
+                player.ConsumeOne(item);
+                handed++;
+            }
+            if (handed >= wanted) break;
         }
 
-        // Hand over what is loose in the bag first, so a readied item is only broken out of its slot when the
-        // contract still needs it.
-        var handed = player.Bag.Where(Accepts)
-            .Concat(player.ReadiedItems.Where(Accepts))
-            .Take(wanted)
-            .ToList();
-
-        foreach (var item in handed)
-            player.ConsumeOne(item);
-
-        Progress += handed.Count;
-        return handed.Count;
+        Progress += handed;
+        return handed;
     }
 
     /// <summary>

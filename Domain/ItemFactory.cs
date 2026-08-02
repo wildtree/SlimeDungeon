@@ -98,6 +98,25 @@ public static class ItemFactory
         };
 
     /// <summary>
+    /// Ore. It rides in the bag like everything else — it used to live in a weightless pouch of its own, which
+    /// meant a good haul cost nothing to carry and there was never a decision to make about it.
+    /// </summary>
+    public static Item CreateMaterial(Metal metal)
+    {
+        var def = Metals.Get(metal);
+        return new Item
+        {
+            Name = def.OreName,
+            Category = ItemCategory.Material,
+            Rank = def.GearRank,
+            Metal = metal,
+            // Worth roughly what a rank-appropriate herb is, so selling spare ore is a modest income rather
+            // than a reason to skip the forge entirely.
+            Value = (int)def.GearRank * 12,
+        };
+    }
+
+    /// <summary>
     /// A stone cut out of a gem slime. It does nothing in a fight and nothing on the body: it is worth money,
     /// and it is what the commissions from the nobility ask for.
     /// </summary>

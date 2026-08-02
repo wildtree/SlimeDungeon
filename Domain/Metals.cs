@@ -69,13 +69,13 @@ public static class Metals
     /// <summary>
     /// How often a slime in an ore-bearing dungeon turns out to be the metal one.
     ///
-    /// This was 12%, which put a metal slime on half of all floors — and that number was quoted as though it
-    /// were how often a player would meet one. It is not. A player walks to the stairs and fights what crosses
-    /// their path, which is only about half of what is on the floor, so 12% actually meant an encounter on
-    /// fewer than a third of trips. Two players in a row reported never seeing one. At 20% it is close to one
-    /// trip in two, which is the rate the whole forge was meant to be paced against.
+    /// Tuned against the rate a player actually *meets* one, which is roughly half the rate they are placed at:
+    /// a trip is a walk to the stairs, not a sweep of the floor. 12% came out at under a third of trips and
+    /// read as broken; 20% came out at nearly one trip in two and read as too common. This sits between them,
+    /// at about one metal slime every three or four dungeons — rare enough to be a small event, frequent
+    /// enough that nobody wonders whether the feature exists.
     /// </summary>
-    public const double SlimeSpawnChance = 0.2;
+    public const double SlimeSpawnChance = 0.13;
 
     /// <summary>
     /// The share of a floor's slimes an ordinary trip actually fights. Measured by walking the shortest route

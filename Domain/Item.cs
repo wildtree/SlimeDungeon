@@ -26,6 +26,9 @@ public enum ItemCategory
     /// <summary>A stone cut out of a gem slime's core. Not used for anything — sold, or handed to whoever
     /// commissioned it.</summary>
     Gemstone,
+
+    /// <summary>Ore prised out of a metal slime. Carried like anything else, forged with, sold or delivered.</summary>
+    Material,
 }
 
 public enum WeaponKind { Sword, Wand }
@@ -77,6 +80,9 @@ public sealed class Item
 
     /// <summary>Which stone this is, for <see cref="ItemCategory.Gemstone"/>. Null on everything else.</summary>
     public Gem? Gem { get; init; }
+
+    /// <summary>Which ore this is, for <see cref="ItemCategory.Material"/>. Null on everything else.</summary>
+    public Metal? Metal { get; init; }
 
     /// <summary>Gear that occupies one of the six body slots.
     /// Weapon/Shield may go in either hand (the player picks); everything else has one fixed slot.</summary>
@@ -143,5 +149,6 @@ public sealed class Item
         PotionKind = PotionKind,
         ForgeId = ForgeId,
         Gem = Gem,
+        Metal = Metal,
     };
 }

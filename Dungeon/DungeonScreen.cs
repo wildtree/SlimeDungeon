@@ -28,6 +28,13 @@ public sealed class DungeonScreen : IScreen
     /// <summary>The haul from the chest just opened, held while its dialog is up. Null when none is showing.</summary>
     private (int Gold, List<Item> Items)? _chestHaul;
 
+    /// <summary>
+    /// A chest standing open-lidded in front of a full bag, waiting on an answer about what to throw away.
+    /// Nothing has been taken from it yet: declining leaves it untouched and still closed.
+    /// </summary>
+    private Chest? _chestSwap;
+    private int _chestSwapCursor;
+
     public DungeonScreen(DungeonMap map, IScreen guildScreen)
     {
         _session = new DungeonSession(map);
@@ -64,7 +71,13 @@ public sealed class DungeonScreen : IScreen
         if (_session.FullMapRevealTimer > 0)
             _session.FullMapRevealTimer = Math.Max(0, _session.FullMapRevealTimer - dt);
 
-        // The chest dialog is modal: nothing moves, and no slime takes a step, until it is acknowledged.
+        // Both chest dialogs are modal: nothing moves, and no slime takes a step, until they are answered.
+        if (_chestSwap is not null)
+        {
+            UpdateChestSwap(ctx, input);
+            return;
+        }
+
         if (_chestHaul is not null)
         {
             if (MenuNav.Confirmed(input) || MenuNav.Cancelled(input))
@@ -289,9 +302,13 @@ public sealed class DungeonScreen : IScreen
         var chest = _session.Map.ChestAt(targetTileX, targetTileY);
         if (chest is not null && !chest.Opened)
         {
-            if (!ctx.Player!.BagHasRoom)
+            // A full bag used to simply refuse, which meant walking all the way back with no idea what was in
+            // it. Now it asks what to throw away — and if the answer is "nothing", the lid goes back down and
+            // the chest is exactly as it was, to be come back for later.
+            if (!ctx.Player!.BagHasRoom && chest.Items.Count > 0)
             {
-                _session.ShowMessage("荷物がいっぱいです");
+                _chestSwap = chest;
+                _chestSwapCursor = OverflowPopup.RowCount(ctx.Player!) - 1;
                 return;
             }
             OpenChest(ctx, chest);
@@ -386,13 +403,48 @@ public sealed class DungeonScreen : IScreen
     }
 
 
+    /// <summary>
+    /// The answer to "your bag is full — throw something away?" in front of a chest. Cancelling and choosing
+    /// "give it up" do the same thing, because they mean the same thing: the chest is left closed and full.
+    /// </summary>
+    private void UpdateChestSwap(GameContext ctx, InputManager input)
+    {
+        var player = ctx.Player!;
+        var chest = _chestSwap!;
+
+        if (MenuNav.Cancelled(input))
+        {
+            _chestSwap = null;
+            _session.ShowMessage("宝箱はそのままにしておいた");
+            return;
+        }
+
+        _chestSwapCursor = MenuNav.Move(input, _chestSwapCursor, OverflowPopup.RowCount(player));
+        if (!MenuNav.Confirmed(input))
+            return;
+
+        if (OverflowPopup.Chosen(player, _chestSwapCursor) is not { } discarded)
+        {
+            // Gave it up. The chest keeps its contents and its closed lid, so it can be opened another time.
+            _chestSwap = null;
+            _session.ShowMessage("宝箱はそのままにしておいた");
+            return;
+        }
+
+        player.Bag.Remove(discarded);
+        _chestSwap = null;
+        OpenChest(ctx, chest);
+    }
+
     private void OpenChest(GameContext ctx, Chest chest)
     {
         var player = ctx.Player!;
-        chest.Opened = true;
 
         if (chest.IsMimic)
         {
+            // A mimic is spent the moment it springs, whatever the bag looks like.
+            chest.Opened = true;
+
             // No lid sound for a mimic — the encounter sting is the whole point of the surprise.
             _session.ShowMessage("宝箱の中からスライムが飛び出した！");
             var mimic = Slime.Create(SlimeColor.Gold, _session.Map.DungeonRank, _session.Map.DungeonElement);
@@ -403,22 +455,14 @@ public sealed class DungeonScreen : IScreen
         ctx.Audio.Play(SoundId.ChestOpen);
         player.Counters.ChestsOpened++;
 
-        // The bag-has-room check happens before OpenChest is ever called (see BeginMove), so every
-        // item here is guaranteed to fit.
-        var gold = chest.Gold;
-        if (gold > 0)
-            player.EarnGold(gold);
-
-        var taken = new List<Item>(chest.Items);
-        foreach (var item in taken)
-            player.Bag.Add(item);
+        var (gold, taken) = chest.TakeInto(player);
 
         // Shown as a dialog rather than a line in the corner: this is the payoff for the whole detour, and a
         // chest that turns out to be empty deserves to be read as clearly as one that is not.
         _chestHaul = (gold, taken);
 
-        chest.Gold = 0;
-        chest.Items.Clear();
+        if (chest.Items.Count > 0)
+            _session.ShowMessage($"鞄がいっぱいで{chest.Items.Count}個残した");
     }
 
     /// <summary>Rank H dungeons cap packs at 2 slimes instead of 4 — a brand-new character still can't
@@ -483,8 +527,10 @@ public sealed class DungeonScreen : IScreen
         if (_magic.IsOpen)
             _magic.Draw(ctx, 12, 240);
 
-        // Modal, so it draws over the status panel as well as the map.
-        if (_chestHaul is { } haul)
+        // Modal, so these draw over the status panel as well as the map.
+        if (_chestSwap is { Items.Count: > 0 } swapping)
+            OverflowPopup.Draw(ctx, swapping.Items[0], _chestSwapCursor, OverflowPopup.Source.Chest);
+        else if (_chestHaul is { } haul)
             ChestPopup.Draw(ctx, haul.Gold, haul.Items);
     }
 
