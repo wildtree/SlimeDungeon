@@ -167,7 +167,7 @@ public sealed class TitleScreen : IScreen
             y += 20;
         }
 
-        var hint = $"[↑↓]選ぶ  [{MenuNav.ConfirmHint(ctx.Input)}]決定  [F1]パッド診断";
+        var hint = $"[{MenuNav.Hint.Direction}]選ぶ  [{MenuNav.Hint.Confirm}]決定  [F1]パッド診断";
         var (hw, _) = ctx.Fonts.Measure(hint, 10);
         ctx.Fonts.DrawText(r.Handle, hint, TitleArt.BackdropWidth - hw - 12, 384, 10, Colors.Rgb(120, 112, 100));
     }

@@ -55,7 +55,7 @@ public static class TitleAwardPopup
             ry += 16f;
         }
 
-        DrawCentered(ctx, "[Enter]続ける（称号はギルドで選べます）", cx, y + h - 20, 9, Colors.Rgb(150, 145, 130));
+        DrawCentered(ctx, $"[{MenuNav.Hint.Confirm}]続ける（称号はギルドで選べます）", cx, y + h - 20, 9, Colors.Rgb(150, 145, 130));
     }
 
     private static void DrawCentered(GameContext ctx, string text, float centerX, float y, float size, SDL.Color color)

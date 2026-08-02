@@ -178,7 +178,7 @@ public sealed class GuildScreen : IScreen
         if (!_menuOpen)
         {
             // Nothing over the room but the prompt to open the counter.
-            var prompt = $"[{MenuNav.MenuHint(ctx.Input)}] ご用件をどうぞ";
+            var prompt = $"[{MenuNav.Hint.Menu}] ご用件をどうぞ";
             var (pw, _) = fonts.Measure(prompt, 12);
             r.FillRect(10, 366, pw + 20, 22, Colors.Rgb(0, 0, 0, 150));
             fonts.DrawText(r.Handle, prompt, 20, 370, 12, Colors.Highlight);

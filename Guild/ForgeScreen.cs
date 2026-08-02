@@ -121,7 +121,7 @@ public sealed class ForgeScreen : IScreen
         if (_message is not null)
             fonts.DrawText(r.Handle, _message, 20, 345, 11, Colors.Gold);
         fonts.DrawText(r.Handle,
-            $"[{MenuNav.ConfirmHint(c.Input)}]決定 [{MenuNav.CancelHint(c.Input)}]戻る", 20, 370, 11, Colors.Border);
+            $"[{MenuNav.Hint.Direction}]選ぶ  [{MenuNav.Hint.Confirm}]決定  [{MenuNav.Hint.Cancel}]戻る", 20, 370, 11, Colors.Border);
 
         StatusPanel.Draw(c, 400, 0, 400);
     }

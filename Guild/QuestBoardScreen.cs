@@ -13,6 +13,47 @@ public sealed class QuestBoardScreen : IScreen
     private LevelUpSummary? _levelUp;
     private RankUpSummary? _rankUp;
 
+    /// <summary>The two things you can do with a contract you are already holding.</summary>
+    private enum QuestAction { Report, Cancel }
+
+    private bool _actionMenuOpen;
+    private int _actionCursor;
+
+    private static string ActionLabel(QuestAction action, Quest active) => action switch
+    {
+        // A collection quest hands over goods; everything else is simply reported. The label follows whichever
+        // the confirm key would actually do, so the popup never promises something different from the screen.
+        QuestAction.Report => active.IsCollection && !active.IsComplete ? "納品する" : "報告する",
+        _ => "クエストをキャンセルする",
+    };
+
+    private void UpdateActionMenu(GameContext ctx, Player player, Quest active, InputManager input)
+    {
+        if (MenuNav.Cancelled(input) || MenuNav.MenuRequested(input))
+        {
+            _actionMenuOpen = false;
+            return;
+        }
+
+        var actions = Enum.GetValues<QuestAction>();
+        _actionCursor = MenuNav.Move(input, _actionCursor, actions.Length);
+
+        if (!MenuNav.Confirmed(input))
+            return;
+
+        _actionMenuOpen = false;
+
+        if (actions[_actionCursor] == QuestAction.Cancel)
+        {
+            player.ApplyPenalty();
+            player.ActiveQuest = null;
+            _message = "クエストをキャンセルした";
+            return;
+        }
+
+        ConfirmActiveQuest(ctx, player, active);
+    }
+
     public void Update(GameContext ctx, float dt)
     {
         var player = ctx.Player!;
@@ -42,11 +83,19 @@ public sealed class QuestBoardScreen : IScreen
 
         if (player.ActiveQuest is { } active)
         {
-            if (input.WasPressed(SDL.Keycode.C))
+            if (_actionMenuOpen)
             {
-                player.ApplyPenalty();
-                player.ActiveQuest = null;
-                _message = "クエストをキャンセルした";
+                UpdateActionMenu(ctx, player, active, input);
+                return;
+            }
+
+            // Cancelling used to be bound to a bare C key, which no gamepad could reach and no hint explained
+            // properly. It lives on the menu button now, alongside reporting, so both things you can do with a
+            // contract are in one place — and confirm on its own still reports, as it always did.
+            if (MenuNav.MenuRequested(input))
+            {
+                _actionMenuOpen = true;
+                _actionCursor = 0;
                 return;
             }
 
@@ -153,17 +202,19 @@ public sealed class QuestBoardScreen : IScreen
             DrawProgress(ctx, active, player, 20, y);
             y += 30;
 
-            var hint = active.IsCollection && !active.IsComplete
-                ? "[Enter]納品する  [C]キャンセル  [Esc]戻る"
-                : "[Enter]報告する  [C]キャンセル  [Esc]戻る";
-            fonts.DrawText(r.Handle, hint, 20, y, 11, Colors.Border);
+            var doing = ActionLabel(QuestAction.Report, active);
+            fonts.DrawText(r.Handle,
+                $"[{MenuNav.Hint.Confirm}]{doing}  [{MenuNav.Hint.Menu}]ほかの操作  [{MenuNav.Hint.Cancel}]戻る",
+                20, y, 11, Colors.Border);
         }
         else
         {
-            fonts.DrawText(r.Handle, "募集中のクエスト（Enterで受注）", 20, y, 12, Colors.Highlight);
+            fonts.DrawText(r.Handle, $"募集中のクエスト（[{MenuNav.Hint.Confirm}]で受注）", 20, y, 12, Colors.Highlight);
             y += 20;
             DrawQuestTable(ctx, player, y);
-            fonts.DrawText(r.Handle, "[Esc]戻る", 20, 370, 11, Colors.Border);
+            fonts.DrawText(r.Handle,
+                $"[{MenuNav.Hint.Direction}]選ぶ  [{MenuNav.Hint.Confirm}]受注する  [{MenuNav.Hint.Cancel}]戻る",
+                20, 370, 11, Colors.Border);
         }
 
         if (_message is not null)
@@ -171,11 +222,45 @@ public sealed class QuestBoardScreen : IScreen
 
         StatusPanel.Draw(ctx, 400, 0, 400);
 
+        if (_actionMenuOpen && player.ActiveQuest is { } open)
+            DrawActionMenu(ctx, open);
+
         // Promotion is announced first and fully replaces the screen; the level-up summary follows.
         if (_rankUp is { } rankUp)
             RankUpPopup.Draw(ctx, rankUp);
         else if (_levelUp is { } levelUp)
             LevelUpPopup.Draw(ctx, levelUp);
+    }
+
+    /// <summary>
+    /// The contract's own little menu. Cancelling a quest costs a penalty point, so it is deliberately not on
+    /// a key you could hit by accident — you have to open this and choose it.
+    /// </summary>
+    private void DrawActionMenu(GameContext ctx, Quest active)
+    {
+        var r = ctx.Renderer;
+        var fonts = ctx.Fonts;
+        var actions = Enum.GetValues<QuestAction>();
+
+        const float w = 240f;
+        var h = 40f + actions.Length * 22f + 18f;
+        const float x = 80f;
+        var y = 150f;
+
+        r.FillRect(x + 5, y + 5, w, h, Colors.Rgb(6, 6, 10, 200));
+        r.FillRect(x, y, w, h, Colors.Rgb(30, 26, 22));
+        r.DrawRect(x, y, w, h, Colors.Gold);
+
+        fonts.DrawText(r.Handle, active.Title, x + 12, y + 10, 12, Colors.Highlight);
+
+        var ry = y + 34f;
+        for (var i = 0; i < actions.Length; i++)
+        {
+            MenuNav.DrawRow(ctx, x + 12, ry, w - 24, 20, ActionLabel(actions[i], active), 11, i == _actionCursor);
+            ry += 22f;
+        }
+
+        fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Cancel}]やめる", x + 12, y + h - 15, 9, Colors.Border);
     }
 
     // Column origins for the quest table. Fixed positions rather than flowing text, so every field lines up

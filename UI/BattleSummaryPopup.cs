@@ -88,7 +88,7 @@ public static class BattleSummaryPopup
         r.FillRect(x + 20, ry + 2, PanelW - 40, 1, Colors.Rgb(90, 84, 60));
         DrawCentered(ctx, $"経験値 {exp}", cx, ry + 10, 15, Colors.ExpBar);
 
-        DrawCentered(ctx, "[Enter]続ける", cx, y + panelH - 18, 9, Colors.Rgb(150, 145, 130));
+        DrawCentered(ctx, $"[{MenuNav.Hint.Confirm}]続ける", cx, y + panelH - 18, 9, Colors.Rgb(150, 145, 130));
     }
 
     /// <summary>Collapses the kill list into one row per species and rank, worst first.</summary>

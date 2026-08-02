@@ -192,7 +192,7 @@ public sealed class ShopScreen : IScreen
         if (_message is not null)
             fonts.DrawText(r.Handle, _message, 20, 345, 11, Colors.Gold);
         fonts.DrawText(r.Handle,
-            $"[{MenuNav.ConfirmHint(ctx.Input)}]決定  [{MenuNav.CancelHint(ctx.Input)}]売り場へ戻る", 20, 370, 10, Colors.Border);
+            $"[{MenuNav.Hint.Confirm}]決定  [{MenuNav.Hint.Cancel}]売り場へ戻る", 20, 370, 10, Colors.Border);
 
         StatusPanel.Draw(ctx, 400, 0, 400);
     }
@@ -218,7 +218,7 @@ public sealed class ShopScreen : IScreen
         if (_message is not null)
             fonts.DrawText(r.Handle, _message, 20, 345, 11, Colors.Gold);
         fonts.DrawText(r.Handle,
-            $"[{MenuNav.ConfirmHint(ctx.Input)}]選ぶ  [{MenuNav.CancelHint(ctx.Input)}]戻る", 20, 370, 10, Colors.Border);
+            $"[{MenuNav.Hint.Confirm}]選ぶ  [{MenuNav.Hint.Cancel}]戻る", 20, 370, 10, Colors.Border);
 
         StatusPanel.Draw(ctx, 400, 0, 400);
     }
@@ -249,7 +249,7 @@ public sealed class ShopScreen : IScreen
         }
 
         if (labels.Length > VisibleRows)
-            fonts.DrawText(r.Handle, $"[↑↓] {_cursor + 1}/{labels.Length}", 300, 40, 10, Colors.Border);
+            fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Direction}] {_cursor + 1}/{labels.Length}", 300, 40, 10, Colors.Border);
     }
 
     private void DrawSellList(GameContext ctx, Player player, ref float y)
@@ -275,6 +275,6 @@ public sealed class ShopScreen : IScreen
         }
 
         if (labels.Length > VisibleRows)
-            fonts.DrawText(r.Handle, $"[↑↓] {_cursor + 1}/{labels.Length}", 300, 40, 10, Colors.Border);
+            fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Direction}] {_cursor + 1}/{labels.Length}", 300, 40, 10, Colors.Border);
     }
 }

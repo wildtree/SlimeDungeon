@@ -205,9 +205,11 @@ public sealed class CombatScreen : IScreen
     private void UpdateTargetSelect(GameContext ctx, InputManager input)
     {
         var alive = _battle.AliveEnemies;
-        if (MenuNav.Cancelled(input)) { _phase = Phase.Menu; _cursor = 0; return; }
-        if (MenuNav.Down(input)) _cursor = (_cursor + 1) % alive.Count;
-        if (MenuNav.Up(input)) _cursor = (_cursor - 1 + alive.Count) % alive.Count;
+        // The list of living enemies shrinks as they are killed, so the cursor has to be re-checked against it
+        // every frame rather than only when a direction is pressed. Going through MenuNav.Move is what does
+        // that; hand-rolled modulo left the cursor pointing past the end of a list that had got shorter.
+        if (MenuNav.Cancelled(input) || alive.Count == 0) { _phase = Phase.Menu; _cursor = 0; return; }
+        _cursor = MenuNav.Move(input, _cursor, alive.Count);
 
         if (MenuNav.Confirmed(input))
         {
@@ -221,9 +223,8 @@ public sealed class CombatScreen : IScreen
     private void UpdateSpellSelect(GameContext ctx, InputManager input)
     {
         var spells = _battle.Player.KnownSpells;
-        if (MenuNav.Cancelled(input)) { _phase = Phase.Menu; _cursor = 0; return; }
-        if (MenuNav.Down(input)) _cursor = (_cursor + 1) % spells.Count;
-        if (MenuNav.Up(input)) _cursor = (_cursor - 1 + spells.Count) % spells.Count;
+        if (MenuNav.Cancelled(input) || spells.Count == 0) { _phase = Phase.Menu; _cursor = 0; return; }
+        _cursor = MenuNav.Move(input, _cursor, spells.Count);
 
         if (!MenuNav.Confirmed(input))
             return;
@@ -247,10 +248,10 @@ public sealed class CombatScreen : IScreen
     private void UpdateItemSelect(GameContext ctx, InputManager input)
     {
         var items = UsableItems(ctx);
+        // This one already carried a hand-written clamp, because the list visibly shrinks as items are used up
+        // and someone had run off the end of it before. MenuNav.Move now does that for every menu in the game.
         if (MenuNav.Cancelled(input) || items.Count == 0) { _phase = Phase.Menu; _cursor = 0; return; }
-        if (_cursor >= items.Count) _cursor = items.Count - 1;
-        if (MenuNav.Down(input)) _cursor = (_cursor + 1) % items.Count;
-        if (MenuNav.Up(input)) _cursor = (_cursor - 1 + items.Count) % items.Count;
+        _cursor = MenuNav.Move(input, _cursor, items.Count);
 
         if (!MenuNav.Confirmed(input))
             return;

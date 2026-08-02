@@ -68,7 +68,7 @@ public sealed class BountyScreen : IScreen
         {
             fonts.DrawText(r.Handle, "報告できる討伐がありません。", 20, 60, 12, Colors.Highlight);
             fonts.DrawText(r.Handle, "ダンジョンでスライムを倒してから来てください。", 20, 82, 10, Colors.Border);
-            fonts.DrawText(r.Handle, "[Esc]戻る", 20, 372, 10, Colors.Border);
+            fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Cancel}]戻る", 20, 372, 10, Colors.Border);
             StatusPanel.Draw(ctx, 400, 0, 400);
             return;
         }
@@ -99,7 +99,7 @@ public sealed class BountyScreen : IScreen
         }
 
         if (_lines.Count > VisibleRows)
-            fonts.DrawText(r.Handle, $"[↑↓] {_scroll + 1}-{Math.Min(_lines.Count, _scroll + VisibleRows)}/{_lines.Count}",
+            fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Direction}] {_scroll + 1}-{Math.Min(_lines.Count, _scroll + VisibleRows)}/{_lines.Count}",
                 20, 292, 9, Colors.Border);
 
         r.FillRect(16, 306, 380, 1, Colors.Rgb(96, 88, 72));
@@ -108,11 +108,11 @@ public sealed class BountyScreen : IScreen
         if (_paid >= 0)
         {
             fonts.DrawText(r.Handle, $"{_paid}Gを受け取った！", 20, 348, 13, Colors.Gold);
-            fonts.DrawText(r.Handle, "[Enter]戻る", 20, 372, 10, Colors.Border);
+            fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Confirm}]戻る", 20, 372, 10, Colors.Border);
         }
         else
         {
-            fonts.DrawText(r.Handle, "[Enter]報酬を受け取る  [Esc]戻る", 20, 372, 10, Colors.Border);
+            fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Confirm}]報酬を受け取る  [{MenuNav.Hint.Cancel}]戻る", 20, 372, 10, Colors.Border);
         }
 
         StatusPanel.Draw(ctx, 400, 0, 400);

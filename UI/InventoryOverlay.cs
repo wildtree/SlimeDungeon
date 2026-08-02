@@ -64,7 +64,9 @@ public sealed class InventoryOverlay
                 return;
         }
 
-        if (MenuNav.Cancelled(input) || input.WasPressed(SDL.Keycode.I))
+        // The I key used to open this overlay and also closed it. Opening moved onto the menu long ago; the
+        // close half was left behind, an undocumented key that could shut the screen by surprise.
+        if (MenuNav.Cancelled(input))
         {
             ctx.ShowInventory = false;
             return;
@@ -486,7 +488,7 @@ public sealed class InventoryOverlay
             y += rowH;
         }
 
-        fonts.DrawText(r.Handle, "[Enter]決定 [Esc]やめる", menuX + 10, menuY + menuH - 14, 9, Colors.Border);
+        fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Confirm}]決定  [{MenuNav.Hint.Cancel}]やめる", menuX + 10, menuY + menuH - 14, 9, Colors.Border);
     }
 
     /// <summary>Stat changes from putting <paramref name="item"/> in a specific slot, replacing what is there.</summary>
@@ -591,7 +593,7 @@ public sealed class InventoryOverlay
                 MenuNav.DrawRow(ctx, 76, y, spellMaxWidth, 16, spellLabels[i], 12, i == _cursor);
                 y += 18;
             }
-            fonts.DrawText(r.Handle, "[Esc]キャンセル", 76, 360, 10, Colors.Border);
+            fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Cancel}]やめる", 76, 360, 10, Colors.Border);
             return;
         }
 
@@ -663,7 +665,7 @@ public sealed class InventoryOverlay
 
         if (_message is not null)
             fonts.DrawText(r.Handle, _message, 76, 345, 11, Colors.Gold);
-        fonts.DrawText(r.Handle, "[Enter]選択/装備解除  [I/Esc]閉じる", 76, 362, 10, Colors.Border);
+        fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Direction}]選ぶ  [{MenuNav.Hint.Confirm}]選択/装備解除  [{MenuNav.Hint.Cancel}]閉じる", 76, 362, 10, Colors.Border);
     }
 
     private static string SlotLabel(EquipSlot slot) => slot switch

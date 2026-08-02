@@ -19,6 +19,9 @@ public sealed class TitleSelectScreen : IScreen
     private const int VisibleRows = 13;
     private const float RowHeight = 21f;
 
+    /// <summary>Space the title's name has before the requirement column starts at x=176.</summary>
+    private const float NameColumnWidth = 132f;
+
     /// <summary>Earned titles first (newest last, as awarded), then the rest grouped by category — so the
     /// things you can actually equip are at the top and never move around as you earn more.</summary>
     private static List<TitleDefinition> BuildList(Player player)
@@ -43,21 +46,26 @@ public sealed class TitleSelectScreen : IScreen
         }
 
         var list = BuildList(player);
-        _cursor = MenuNav.Move(input, _cursor, list.Count);
+        // The list carries one extra row at the top for taking the card down. Clearing it was a hidden key
+        // before — X once, then D and the pad's north button — and a hidden key can only be explained by
+        // printing its name, which is exactly what we are trying to stop doing. As a row it needs no key of
+        // its own and no hint: you move to it and confirm, like everything else on the screen.
+        _cursor = MenuNav.Move(input, _cursor, list.Count + 1);
 
-        // Clearing the card is a legitimate choice, but it used to be bound to X — which is now the confirm
-        // button. It moved onto the cancel-adjacent key so nothing collides, and a gamepad can still reach it.
-        if (input.WasPressed(SDL.Keycode.D) || input.WasPressed(SDL.GamepadButton.North))
+        if (!MenuNav.Confirmed(input))
+            return;
+
+        if (_cursor == 0)
         {
             player.DisplayedTitle = null;
             _message = "称号を外しました";
             return;
         }
 
-        if (!MenuNav.Confirmed(input) || list.Count == 0)
+        if (list.Count == 0)
             return;
 
-        var picked = list[_cursor];
+        var picked = list[_cursor - 1];
         if (!player.EarnedTitles.Contains(picked.Id))
         {
             _message = "まだ獲得していません";
@@ -90,19 +98,34 @@ public sealed class TitleSelectScreen : IScreen
 
         r.FillRect(16, 56, 380, 1, Colors.Rgb(96, 88, 72));
 
-        var scrollTop = Math.Clamp(_cursor - VisibleRows / 2, 0, Math.Max(0, list.Count - VisibleRows));
+        // Row 0 is "take the card down"; the titles follow after it.
+        var rowCount = list.Count + 1;
+        var scrollTop = Math.Clamp(_cursor - VisibleRows / 2, 0, Math.Max(0, rowCount - VisibleRows));
         var y = 62f;
-        for (var i = scrollTop; i < Math.Min(list.Count, scrollTop + VisibleRows); i++)
+        for (var i = scrollTop; i < Math.Min(rowCount, scrollTop + VisibleRows); i++)
         {
-            var title = list[i];
-            var owned = player.EarnedTitles.Contains(title.Id);
             var selected = i == _cursor;
-            var displayed = player.DisplayedTitle == title.Id;
 
             if (selected)
                 r.FillRect(16, y - 2, 380, RowHeight - 2, Colors.Highlight);
             else if ((i & 1) == 0)
                 r.FillRect(16, y - 2, 380, RowHeight - 2, Colors.Rgb(30, 26, 22));
+
+            if (i == 0)
+            {
+                var none = player.DisplayedTitle is null;
+                fonts.DrawText(r.Handle, none ? "★" : "・", 22, y + 2, 10,
+                    selected ? Colors.Black : none ? Colors.Gold : Colors.White);
+                fonts.DrawText(r.Handle, "称号を外す", 40, y + 1, 12, selected ? Colors.Black : Colors.White);
+                fonts.DrawText(r.Handle, "ギルドカードを空欄にする", 176, y + 3, 9,
+                    selected ? Colors.Rgb(60, 50, 20) : Colors.Rgb(150, 145, 135));
+                y += RowHeight;
+                continue;
+            }
+
+            var title = list[i - 1];
+            var owned = player.EarnedTitles.Contains(title.Id);
+            var displayed = player.DisplayedTitle == title.Id;
 
             // A marker in the gutter: which one is on the card, and which are still locked.
             var marker = displayed ? "★" : owned ? "・" : "×";
@@ -112,7 +135,12 @@ public sealed class TitleSelectScreen : IScreen
             fonts.DrawText(r.Handle, marker, 22, y + 2, 10, markerColor);
 
             var nameColor = selected ? Colors.Black : owned ? Colors.White : Colors.Rgb(104, 100, 96);
-            fonts.DrawText(r.Handle, title.Name, 40, y + 1, 12, nameColor);
+            // "ドラゴンスライムスレイヤー" is long enough to run into the requirement column beside it, so a
+            // name that does not fit is set a little smaller rather than allowed to collide.
+            var nameSize = 12f;
+            while (nameSize > 9f && fonts.Measure(title.Name, nameSize).Item1 > NameColumnWidth)
+                nameSize -= 0.5f;
+            fonts.DrawText(r.Handle, title.Name, 40, y + 1 + (12f - nameSize) * 0.5f, nameSize, nameColor);
 
             // An earned title reads as a record of the deed that won it. An unearned one keeps its condition
             // to itself — finding out what earns a title is meant to be part of the discovery, not a checklist.
@@ -125,12 +153,14 @@ public sealed class TitleSelectScreen : IScreen
             y += RowHeight;
         }
 
-        if (list.Count > VisibleRows)
-            fonts.DrawText(r.Handle, $"({_cursor + 1}/{list.Count})", 340, 40, 9, Colors.Border);
+        if (rowCount > VisibleRows)
+            fonts.DrawText(r.Handle, $"({_cursor + 1}/{rowCount})", 340, 40, 9, Colors.Border);
 
         if (_message is not null)
             fonts.DrawText(r.Handle, _message, 20, 352, 11, Colors.Gold);
-        fonts.DrawText(r.Handle, "[Enter]掲げる  [X]外す  [Esc]戻る", 20, 372, 10, Colors.Border);
+        fonts.DrawText(r.Handle,
+            $"[{MenuNav.Hint.Direction}]選ぶ  [{MenuNav.Hint.Confirm}]掲げる  [{MenuNav.Hint.Cancel}]戻る",
+            20, 372, 10, Colors.Border);
 
         StatusPanel.Draw(ctx, 400, 0, 400);
     }
