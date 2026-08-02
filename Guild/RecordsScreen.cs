@@ -67,7 +67,7 @@ public sealed class RecordsScreen : IScreen
         if (_ranked.Count == 0)
         {
             fonts.DrawText(r.Handle, "まだ記録がありません。", 20, 70, 12, Colors.Highlight);
-            fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Cancel}]戻る", 20, 372, 10, Colors.Border);
+            ControlHints.Draw(ctx, 20, 372, 10, Colors.Border, ControlHints.Cancel("戻る"));
             StatusPanel.Draw(ctx, 400, 0, 400);
             return;
         }
@@ -111,12 +111,12 @@ public sealed class RecordsScreen : IScreen
         }
 
         if (_ranked.Count > visible)
-            fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Direction}] {_scroll + 1}-{Math.Min(_ranked.Count, _scroll + visible)}/{_ranked.Count}",
-                20, 344, 9, Colors.Border);
+            ControlHints.Draw(ctx, 20, 344, 9, Colors.Border,
+                ControlHints.Direction($"{_scroll + 1}-{Math.Min(_ranked.Count, _scroll + visible)}/{_ranked.Count}"));
 
         fonts.DrawText(r.Handle,
             $"順位: 到達ランク > レベル > 討伐数 > 生存日数 > 所持金", 20, 358, 9, Colors.Border);
-        fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Cancel}]戻る", 20, 374, 10, Colors.Border);
+        ControlHints.Draw(ctx, 20, 374, 10, Colors.Border, ControlHints.Cancel("戻る"));
 
         StatusPanel.Draw(ctx, 400, 0, 400);
     }

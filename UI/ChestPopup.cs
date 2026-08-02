@@ -61,7 +61,7 @@ public static class ChestPopup
             }
         }
 
-        DrawCentered(ctx, $"[{MenuNav.Hint.Confirm}]閉じる", cx, y + panelH - 20, 9, Colors.Rgb(150, 145, 130));
+        ControlHints.DrawCentered(ctx, cx, y + panelH - 20, 9, Colors.Rgb(150, 145, 130), ControlHints.Confirm("閉じる"));
     }
 
     private static void DrawCentered(GameContext ctx, string text, float centerX, float y, float size, SDL.Color color)

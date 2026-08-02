@@ -202,19 +202,17 @@ public sealed class QuestBoardScreen : IScreen
             DrawProgress(ctx, active, player, 20, y);
             y += 30;
 
-            var doing = ActionLabel(QuestAction.Report, active);
-            fonts.DrawText(r.Handle,
-                $"[{MenuNav.Hint.Confirm}]{doing}  [{MenuNav.Hint.Menu}]ほかの操作  [{MenuNav.Hint.Cancel}]戻る",
-                20, y, 11, Colors.Border);
+            ControlHints.Draw(ctx, 20, y, 11, Colors.Border,
+                ControlHints.Confirm(ActionLabel(QuestAction.Report, active)),
+                ControlHints.Menu("ほかの操作"), ControlHints.Cancel("戻る"));
         }
         else
         {
-            fonts.DrawText(r.Handle, $"募集中のクエスト（[{MenuNav.Hint.Confirm}]で受注）", 20, y, 12, Colors.Highlight);
+            fonts.DrawText(r.Handle, "募集中のクエスト", 20, y, 12, Colors.Highlight);
             y += 20;
             DrawQuestTable(ctx, player, y);
-            fonts.DrawText(r.Handle,
-                $"[{MenuNav.Hint.Direction}]選ぶ  [{MenuNav.Hint.Confirm}]受注する  [{MenuNav.Hint.Cancel}]戻る",
-                20, 370, 11, Colors.Border);
+            ControlHints.Draw(ctx, 20, 370, 11, Colors.Border,
+                ControlHints.Direction("選ぶ"), ControlHints.Confirm("受注する"), ControlHints.Cancel("戻る"));
         }
 
         if (_message is not null)
@@ -260,7 +258,7 @@ public sealed class QuestBoardScreen : IScreen
             ry += 22f;
         }
 
-        fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Cancel}]やめる", x + 12, y + h - 15, 9, Colors.Border);
+        ControlHints.Draw(ctx, x + 12, y + h - 15, 9, Colors.Border, ControlHints.Cancel("やめる"));
     }
 
     // Column origins for the quest table. Fixed positions rather than flowing text, so every field lines up

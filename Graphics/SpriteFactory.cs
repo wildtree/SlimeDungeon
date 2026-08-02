@@ -47,6 +47,11 @@ public sealed class SpriteFactory : IDisposable
     /// <summary>Stamped wax seal that carries the rank letter on the guild card.</summary>
     public IntPtr RankSeal { get; private set; }
 
+    private readonly Dictionary<HintIcon, IntPtr> _hintIcons = new();
+
+    /// <summary>The glyph for one of the four controls, for <see cref="UI.ControlHints"/>.</summary>
+    public IntPtr HintIcon(HintIcon icon) => _hintIcons[icon];
+
     private readonly Dictionary<Element, (IntPtr Wall, IntPtr Floor, IntPtr Stairs)> _tileSets = new();
     private readonly Dictionary<Element, IntPtr> _combatBackdrops = new();
     private readonly Dictionary<SlimeColor, (IntPtr Idle, IntPtr Hop)> _slimes = new();
@@ -113,6 +118,9 @@ public sealed class SpriteFactory : IDisposable
 
         foreach (var key in Enum.GetValues<ItemIconKey>())
             _itemIcons[key] = Bake(renderer, BuildItemIcon(key));
+
+        foreach (var icon in Enum.GetValues<HintIcon>())
+            _hintIcons[icon] = Bake(renderer, HintIcons.Build(icon));
 
         foreach (var color in Enum.GetValues<SlimeColor>())
         {

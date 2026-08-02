@@ -85,7 +85,7 @@ public sealed class DungeonSelectScreen : IScreen
         y += 8;
         fonts.DrawText(r.Handle, "12x12の一画面ダンジョン。入るたびに自動生成される。", 20, y, 11, Colors.Border);
         fonts.DrawText(r.Handle, "格下のダンジョンにもいつでも入れる（スライムも宝も相応に弱い）。", 20, y + 16, 11, Colors.Border);
-        fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Direction}]選ぶ  [{MenuNav.Hint.Confirm}]もぐる  [{MenuNav.Hint.Cancel}]戻る", 20, 370, 11, Colors.Border);
+        ControlHints.Draw(ctx, 20, 370, 11, Colors.Border, ControlHints.Direction("選ぶ"), ControlHints.Confirm("もぐる"), ControlHints.Cancel("戻る"));
 
         StatusPanel.Draw(ctx, 400, 0, 400);
     }

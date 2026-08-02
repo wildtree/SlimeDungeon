@@ -45,6 +45,30 @@ public sealed class InventoryOverlay
 
     private const int SlotRows = 4;
 
+    /// <summary>
+    /// Wipes everything the last visit left behind, so the screen opens the same way every time.
+    ///
+    /// This overlay is a single long-lived instance — Program.cs builds one at startup and shows the same
+    /// object for the whole run — so every field on it survives being closed. The visible symptom was the
+    /// status line: throw away a herb, close the bag, open it again an hour later and it still said
+    /// "薬草(H)を捨てた", reporting an action from a different part of the game entirely. The cursor and the
+    /// half-finished selection state hung around just the same, they were simply less obvious about it.
+    /// </summary>
+    private void Reset()
+    {
+        _phase = Phase.List;
+        _cursor = 0;
+        _actionCursor = 0;
+        _slotChoiceCursor = 0;
+        _message = null;
+        _pendingScroll = null;
+        _selectedItem = null;
+        _selectedItemSlot = null;
+        _pendingSlotItem = null;
+        _slotChoices = Array.Empty<EquipSlot>();
+        _availableActions = new List<ItemAction>();
+    }
+
     public void Update(GameContext ctx, float dt)
     {
         var input = ctx.Input;
@@ -69,6 +93,7 @@ public sealed class InventoryOverlay
         if (MenuNav.Cancelled(input))
         {
             ctx.ShowInventory = false;
+            Reset();
             return;
         }
 
@@ -488,7 +513,7 @@ public sealed class InventoryOverlay
             y += rowH;
         }
 
-        fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Confirm}]決定  [{MenuNav.Hint.Cancel}]やめる", menuX + 10, menuY + menuH - 14, 9, Colors.Border);
+        ControlHints.Draw(ctx, menuX + 10, menuY + menuH - 14, 9, Colors.Border, ControlHints.Confirm("決定"), ControlHints.Cancel("やめる"));
     }
 
     /// <summary>Stat changes from putting <paramref name="item"/> in a specific slot, replacing what is there.</summary>
@@ -593,7 +618,7 @@ public sealed class InventoryOverlay
                 MenuNav.DrawRow(ctx, 76, y, spellMaxWidth, 16, spellLabels[i], 12, i == _cursor);
                 y += 18;
             }
-            fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Cancel}]やめる", 76, 360, 10, Colors.Border);
+            ControlHints.Draw(ctx, 76, 360, 10, Colors.Border, ControlHints.Cancel("やめる"));
             return;
         }
 
@@ -665,7 +690,8 @@ public sealed class InventoryOverlay
 
         if (_message is not null)
             fonts.DrawText(r.Handle, _message, 76, 345, 11, Colors.Gold);
-        fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Direction}]選ぶ  [{MenuNav.Hint.Confirm}]選択/装備解除  [{MenuNav.Hint.Cancel}]閉じる", 76, 362, 10, Colors.Border);
+        ControlHints.Draw(ctx, 76, 362, 10, Colors.Border,
+            ControlHints.Direction("選ぶ"), ControlHints.Confirm("選択/装備解除"), ControlHints.Cancel("閉じる"));
     }
 
     private static string SlotLabel(EquipSlot slot) => slot switch

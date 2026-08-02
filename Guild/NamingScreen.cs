@@ -97,7 +97,7 @@ public sealed class NamingScreen : IScreen
         }
         else
         {
-            fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Confirm}]決定  [{MenuNav.Hint.Cancel}]戻る", panelX, 262, 10, Colors.Border);
+            ControlHints.Draw(ctx, panelX, 262, 10, Colors.Border, ControlHints.Confirm("決定"), ControlHints.Cancel("戻る"));
         }
 
         // Receptionist's dialogue, in a speech-box across the bottom of the whole scene.

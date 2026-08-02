@@ -108,7 +108,7 @@ public sealed class KillLogOverlay
             y += RowHeight;
         }
 
-        fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Cancel}]閉じる", PanelX + 16, PanelY + PanelH - 20, 10, Colors.Border);
+        ControlHints.Draw(ctx, PanelX + 16, PanelY + PanelH - 20, 10, Colors.Border, ControlHints.Cancel("閉じる"));
     }
 
     private static SDL.Color ElementColor(Element element) => element switch

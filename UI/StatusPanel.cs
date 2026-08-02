@@ -77,7 +77,7 @@ public static class StatusPanel
 
         // The bag and the kill log moved onto the menu, so the old I/S shortcuts no longer exist — this line
         // was still advertising them.
-        fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Menu}]", x + pad, y + h - 18, 9, Colors.Border);
+        ControlHints.Draw(ctx, x + pad, y + h - 18, 9, Colors.Border, ControlHints.Menu("メニュー"));
     }
 
     // ---- Guild card -----------------------------------------------------------

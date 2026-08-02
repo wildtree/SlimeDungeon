@@ -158,9 +158,8 @@ public sealed class TitleSelectScreen : IScreen
 
         if (_message is not null)
             fonts.DrawText(r.Handle, _message, 20, 352, 11, Colors.Gold);
-        fonts.DrawText(r.Handle,
-            $"[{MenuNav.Hint.Direction}]選ぶ  [{MenuNav.Hint.Confirm}]掲げる  [{MenuNav.Hint.Cancel}]戻る",
-            20, 372, 10, Colors.Border);
+        ControlHints.Draw(ctx, 20, 372, 10, Colors.Border,
+            ControlHints.Direction("選ぶ"), ControlHints.Confirm("掲げる"), ControlHints.Cancel("戻る"));
 
         StatusPanel.Draw(ctx, 400, 0, 400);
     }

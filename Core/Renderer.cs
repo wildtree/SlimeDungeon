@@ -35,6 +35,20 @@ public sealed class Renderer
         SDL.RenderTexture(Handle, texture, IntPtr.Zero, dst);
     }
 
+    /// <summary>
+    /// Draws a texture multiplied by <paramref name="tint"/>. Used by the control-hint icons, which are drawn
+    /// white once and coloured to match whatever text they sit beside. The modulation is put back afterwards
+    /// so the next draw of the same texture is unaffected — these are shared, cached textures.
+    /// </summary>
+    public void DrawTextureTinted(IntPtr texture, float x, float y, float w, float h, SDL.Color tint)
+    {
+        SDL.SetTextureColorMod(texture, tint.R, tint.G, tint.B);
+        SDL.SetTextureAlphaMod(texture, tint.A);
+        DrawTexture(texture, x, y, w, h);
+        SDL.SetTextureColorMod(texture, 255, 255, 255);
+        SDL.SetTextureAlphaMod(texture, 255);
+    }
+
     public void Present() => SDL.RenderPresent(Handle);
 }
 

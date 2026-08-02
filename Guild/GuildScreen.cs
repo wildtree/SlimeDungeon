@@ -178,10 +178,9 @@ public sealed class GuildScreen : IScreen
         if (!_menuOpen)
         {
             // Nothing over the room but the prompt to open the counter.
-            var prompt = $"[{MenuNav.Hint.Menu}] ご用件をどうぞ";
-            var (pw, _) = fonts.Measure(prompt, 12);
-            r.FillRect(10, 366, pw + 20, 22, Colors.Rgb(0, 0, 0, 150));
-            fonts.DrawText(r.Handle, prompt, 20, 370, 12, Colors.Highlight);
+            var prompt = ControlHints.Menu("ご用件をどうぞ");
+            r.FillRect(10, 366, ControlHints.Width(ctx, 12, prompt) + 20, 22, Colors.Rgb(0, 0, 0, 150));
+            ControlHints.Draw(ctx, 20, 370, 12, Colors.Highlight, prompt);
 
             if (_message is not null)
                 DrawReceptionistSay(ctx, _message, 14f, 356f);

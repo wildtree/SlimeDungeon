@@ -131,7 +131,7 @@ public sealed class PotionCraftScreen : IScreen
 
         if (_message is not null)
             fonts.DrawText(r.Handle, _message, 20, 345, 11, Colors.Gold);
-        fonts.DrawText(r.Handle, $"[{MenuNav.Hint.Confirm}]選ぶ  [{MenuNav.Hint.Cancel}]戻る", 20, 370, 11, Colors.Border);
+        ControlHints.Draw(ctx, 20, 370, 11, Colors.Border, ControlHints.Confirm("選ぶ"), ControlHints.Cancel("戻る"));
 
         StatusPanel.Draw(ctx, 400, 0, 400);
     }

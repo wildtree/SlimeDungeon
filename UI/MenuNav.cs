@@ -46,22 +46,10 @@ public static class MenuNav
 
     public static bool MenuRequested(InputManager input) => input.WasPressed(GameAction.Menu);
 
-    /// <summary>
-    /// What the on-screen hints call each control.
-    ///
-    /// These name the *action*, never the key. The hints used to print the physical button — X on a keyboard,
-    /// A on a gamepad — which meant that whichever of the two you were not holding, the screen was telling you
-    /// to press something that did not exist in front of you. Worse, X is confirm on the keyboard and the menu
-    /// button on a pad, so a printed letter was actively ambiguous. Naming the action sidesteps all of it: the
-    /// player learns "決定" once and it holds whatever they are playing with.
-    /// </summary>
-    public static class Hint
-    {
-        public const string Direction = "方向キー";
-        public const string Confirm = "決定";
-        public const string Cancel = "取消";
-        public const string Menu = "メニュー";
-    }
+    // On-screen hints live in ControlHints, which draws each control as a small icon. There is deliberately no
+    // string form of a control's name here any more: hints went from naming the key ("[X]") to naming the
+    // action ("[決定]") to showing the control itself, and leaving a text version lying around would only
+    // invite the next screen to go back to spelling one out.
 
     /// <summary>
     /// Widest rendered width across every label in a list, at the given font size — used so a selection

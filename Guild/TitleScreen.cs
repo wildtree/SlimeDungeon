@@ -167,8 +167,18 @@ public sealed class TitleScreen : IScreen
             y += 20;
         }
 
-        var hint = $"[{MenuNav.Hint.Direction}]選ぶ  [{MenuNav.Hint.Confirm}]決定  [F1]パッド診断";
-        var (hw, _) = ctx.Fonts.Measure(hint, 10);
-        ctx.Fonts.DrawText(r.Handle, hint, TitleArt.BackdropWidth - hw - 12, 384, 10, Colors.Rgb(120, 112, 100));
+        // F1 is named as a literal key on purpose: it is a keyboard-only diagnostic with no gamepad equivalent
+        // and no action icon, so there is nothing ambiguous about spelling it out.
+        var color = Colors.Rgb(120, 112, 100);
+        ControlHint[] hints = [ControlHints.Direction("選ぶ"), ControlHints.Confirm("決定")];
+        const string diag = "[F1]パッド診断";
+        var (dw, _) = ctx.Fonts.Measure(diag, 10);
+        // ControlHints.Width measures only up to the last label, so without this the F1 note is drawn flush
+        // against 決定 with nothing between them.
+        const float gap = 10f;
+        var width = ControlHints.Width(ctx, 10, hints) + gap + dw;
+        var hx = TitleArt.BackdropWidth - width - 12;
+        ControlHints.Draw(ctx, hx, 384, 10, color, hints);
+        ctx.Fonts.DrawText(r.Handle, diag, TitleArt.BackdropWidth - dw - 12, 384, 10, color);
     }
 }
