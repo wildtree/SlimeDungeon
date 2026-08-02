@@ -67,12 +67,24 @@ public static class Metals
         All.FirstOrDefault(m => m.Ranks.Contains(rank));
 
     /// <summary>
-    /// How often a slime in an ore-bearing dungeon turns out to be the metal one. Together with the drop
-    /// chance below this is what decides how long a set takes: at roughly six ore-carrying slimes in a hundred,
-    /// half of which give up their ore, a trip yields about half a piece of material. Seven pieces make a set,
-    /// so a set is a fortnight of ordinary adventuring rather than either an afternoon or a second career.
+    /// How often a slime in an ore-bearing dungeon turns out to be the metal one.
+    ///
+    /// This was 12%, which put a metal slime on half of all floors — and that number was quoted as though it
+    /// were how often a player would meet one. It is not. A player walks to the stairs and fights what crosses
+    /// their path, which is only about half of what is on the floor, so 12% actually meant an encounter on
+    /// fewer than a third of trips. Two players in a row reported never seeing one. At 20% it is close to one
+    /// trip in two, which is the rate the whole forge was meant to be paced against.
     /// </summary>
-    public const double SlimeSpawnChance = 0.12;
+    public const double SlimeSpawnChance = 0.2;
+
+    /// <summary>
+    /// The share of a floor's slimes an ordinary trip actually fights. Measured by walking the shortest route
+    /// to the stairs and counting what comes within chase range of it: consistently a little under half.
+    ///
+    /// Anything that reasons about "per trip" rates has to include this. Leaving it out is what made the ore
+    /// commissions twice as optimistic as they should have been.
+    /// </summary>
+    public const double SlimesMetPerTrip = 0.47;
 
     /// <summary>How often killing one yields its ore.</summary>
     public const double MaterialDropChance = 0.5;

@@ -125,8 +125,10 @@ public static class QuestFactory
     {
         var ore = Metals.ForRank(rank)!;
 
+        // Only what is actually fought counts. Sizing this off the placement rate made every ore commission
+        // twice as easy on paper as it was in the dungeon.
         var perTrip = Metals.SlimeSpawnChance * Metals.MaterialDropChance
-                      * DungeonGenerator.AverageSlimesPerDungeon;
+                      * DungeonGenerator.AverageSlimesPerDungeon * Metals.SlimesMetPerTrip;
 
         // Two to four pieces: enough to be a job, few enough that the expected trip count stays in the range
         // an ordinary fortnight of play covers.
