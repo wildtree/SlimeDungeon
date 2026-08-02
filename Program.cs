@@ -57,6 +57,11 @@ while (!input.QuitRequested)
     var dt = (nowTicks - lastTicks) / 1000f;
     lastTicks = nowTicks;
 
+    // Draining the queue is what makes SDL refresh its gamepad state, so the sticks have to be read after it
+    // and not before, or every reading would be a frame out of date. It takes dt because a direction held
+    // down repeats on a clock.
+    input.SampleSticks(dt);
+
     // Text is rasterised at the window's real pixel size rather than at the 640x400 logical size, so the
     // font service needs to know how far the window is currently being stretched.
     fonts.RefreshPixelScale(rendererHandle);
