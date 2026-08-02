@@ -10,6 +10,7 @@ public enum SoundId
     LevelUpFanfare,
     RankUpFanfare,
     TitleFanfare,
+    QuestFailed,
 }
 
 /// <summary>
@@ -37,6 +38,7 @@ public static class SoundBank
         [SoundId.LevelUpFanfare] = LevelUpFanfare(),
         [SoundId.RankUpFanfare] = RankUpFanfare(),
         [SoundId.TitleFanfare] = TitleFanfare(),
+        [SoundId.QuestFailed] = QuestFailed(),
     };
 
     // ---- Combat effects ----------------------------------------------------------------------
@@ -210,6 +212,28 @@ public static class SoundBank
             new(1.06, 0.40, 45), new(1.68, 1.05, 50),
         ];
         return Render(2.90, lead, harmony, bass);
+    }
+
+    /// <summary>
+    /// A contract lost. The inverse of the other three: the phrase falls instead of climbing and lands on a
+    /// minor chord, and it is short — a fanfare's length would make a ceremony out of bad news. Kept quiet
+    /// enough not to punish the player twice.
+    /// </summary>
+    private static short[] QuestFailed()
+    {
+        Note[] lead =
+        [
+            new(0.00, 0.22, 69), new(0.22, 0.22, 65), new(0.44, 0.60, 62),
+        ];
+        Note[] harmony =
+        [
+            new(0.44, 0.60, 57, 0.5), new(0.44, 0.60, 65, 0.35),
+        ];
+        Note[] bass =
+        [
+            new(0.00, 0.40, 45), new(0.44, 0.62, 38),
+        ];
+        return Render(1.30, lead, harmony, bass);
     }
 
     /// <summary>Lays a three-part phrase down: brass lead, quieter brass harmony, square-wave bass.</summary>

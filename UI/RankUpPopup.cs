@@ -64,7 +64,7 @@ public static class RankUpPopup
             DrawCentered(ctx, $"ダンジョン: {summary.Ceiling.Label()}ランクまで", cx, 226, 12, Colors.White);
         }
 
-        DrawCentered(ctx, "Enterで続ける", cx, 258, 10, Colors.Rgb(150, 145, 130));
+        ControlHints.DrawCentered(ctx, cx, 258, 10, Colors.Rgb(150, 145, 130), ControlHints.Confirm("続ける"));
 
         // The receptionist's line, in the same speech box style the registration desk uses.
         const float boxX = 16f, boxY = 300f, boxW = 608f, boxH = 84f;

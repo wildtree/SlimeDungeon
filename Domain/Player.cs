@@ -365,15 +365,72 @@ public sealed class Player
         return Rank != from ? new RankUpSummary(from, Rank) : null;
     }
 
+    /// <summary>How many failures it takes to lose a rank.</summary>
+    public const int PenaltiesBeforeDemotion = 3;
+
     public void ApplyPenalty()
     {
         PenaltyCount++;
-        if (PenaltyCount >= 3 && Rank != Rank.H)
+        if (PenaltyCount >= PenaltiesBeforeDemotion && Rank != Rank.H)
         {
             PenaltyCount = 0;
             Rank = RankExtensions.Clamp((int)Rank - 1);
         }
     }
+
+    /// <summary>
+    /// A contract whose deadline has run out. Costs more than handing it back does: the guild loses face for an
+    /// adventurer who simply never came back, where someone who returns and says they cannot finish it only
+    /// takes the black mark. So this is the expensive path, and cancelling early is deliberately the cheap one.
+    /// </summary>
+    public QuestFailure FailExpiredQuest(Quest quest)
+    {
+        var rankBefore = Rank;
+
+        // The rank points a failure costs: exactly what finishing it would have been worth, so a job that
+        // could have promoted you sets you back by the same amount. A below-rank job earns nothing towards
+        // promotion, but dropping one is still worth a point of embarrassment.
+        var pointsLost = Math.Max(1, quest.RankPointsFor(Rank));
+        pointsLost = Math.Min(pointsLost, RankPoints);
+        RankPoints -= pointsLost;
+
+        // Half of what the job paid, which scales with the contract rather than needing a table of its own.
+        var fine = quest.RewardGold / 2;
+        var paid = Math.Min(fine, Gold);
+        Gold -= paid;
+
+        ApplyPenalty();
+        ActiveQuest = null;
+
+        return new QuestFailure(
+            quest.Title,
+            quest.Rank,
+            pointsLost,
+            fine,
+            paid,
+            PenaltyCount,
+            Rank != rankBefore ? Rank : null);
+    }
+}
+
+/// <summary>
+/// What a missed deadline cost, for the notice the guild puts in front of you on your way back in. Every field
+/// is something the player would otherwise have to notice for themselves by comparing two screens.
+/// </summary>
+/// <param name="Fine">What was owed.</param>
+/// <param name="FinePaid">What could actually be taken — less than <paramref name="Fine"/> if the purse was short.</param>
+/// <param name="PenaltyCount">Black marks now standing, out of <see cref="Player.PenaltiesBeforeDemotion"/>.</param>
+/// <param name="DemotedTo">The new rank if this failure cost one, null otherwise.</param>
+public sealed record QuestFailure(
+    string QuestTitle,
+    Rank QuestRank,
+    int RankPointsLost,
+    int Fine,
+    int FinePaid,
+    int PenaltyCount,
+    Rank? DemotedTo)
+{
+    public bool CouldNotPayInFull => FinePaid < Fine;
 }
 
 /// <summary>A snapshot of everything that changed across one level-up (or a multi-level jump), for the

@@ -13,6 +13,10 @@ public sealed class GuildScreen : IScreen
     private int _cursor;
     private string? _message;
     private List<TitleDefinition> _newTitles = new();
+
+    /// <summary>A contract that ran out of days while you were away; cleared once acknowledged.</summary>
+    private QuestFailure? _questFailure;
+
     private bool _menuOpen;
     private readonly FieldMagicMenu _magic = new();
 
@@ -22,8 +26,8 @@ public sealed class GuildScreen : IScreen
 
         if (player.ActiveQuest is { } quest && quest.IsExpired(player.DayCount))
         {
-            player.ApplyPenalty();
-            player.ActiveQuest = null;
+            _questFailure = player.FailExpiredQuest(quest);
+            ctx.Audio.Play(SoundId.QuestFailed);
         }
 
         QuestFactory.RefillExpiredBoardSlots(player);
@@ -84,6 +88,15 @@ public sealed class GuildScreen : IScreen
     {
         var input = ctx.Input;
         var player = ctx.Player!;
+
+        // A failed contract is the first thing you hear about, ahead of any good news — it happened before you
+        // walked through the door, and a title fanfare over the top of it would read very strangely.
+        if (_questFailure is not null)
+        {
+            if (MenuNav.Confirmed(input))
+                _questFailure = null;
+            return;
+        }
 
         // Newly awarded titles are acknowledged before anything else can be done.
         if (_newTitles.Count > 0)
@@ -186,7 +199,10 @@ public sealed class GuildScreen : IScreen
                 DrawReceptionistSay(ctx, _message, 14f, 356f);
 
             StatusPanel.Draw(ctx, 400, 0, 400);
-            if (_newTitles.Count > 0)
+            // Same order the input handler acknowledges them in: the bad news is on top.
+            if (_questFailure is { } failed)
+                QuestFailedPopup.Draw(ctx, failed);
+            else if (_newTitles.Count > 0)
                 TitleAwardPopup.Draw(ctx, _newTitles);
             return;
         }
@@ -236,7 +252,9 @@ public sealed class GuildScreen : IScreen
         if (_magic.IsOpen)
             _magic.Draw(ctx, 210, 150);
 
-        if (_newTitles.Count > 0)
+        if (_questFailure is { } expired)
+            QuestFailedPopup.Draw(ctx, expired);
+        else if (_newTitles.Count > 0)
             TitleAwardPopup.Draw(ctx, _newTitles);
     }
 

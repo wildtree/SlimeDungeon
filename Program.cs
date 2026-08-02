@@ -21,6 +21,12 @@ if (!SDL.CreateWindowAndRenderer("Slime Dungeon", 640, 400, SDL.WindowFlags.Resi
 
 SDL.SetRenderLogicalPresentation(rendererHandle, 640, 400, SDL.RendererLogicalPresentation.Letterbox);
 
+// Textures were given a blend mode when they were baked, but the renderer's own draw blend mode never was, so
+// every FillRect with an alpha in it has been painting solid. That silently disabled things the code plainly
+// meant to do — most visibly the dungeon's fog, where explored-but-unseen tiles are covered at alpha 150 and
+// so were coming out flat black, making remembered ground indistinguishable from ground never walked.
+SDL.SetRenderDrawBlendMode(rendererHandle, SDL.BlendMode.Blend);
+
 var renderer = new Renderer(rendererHandle);
 using var fonts = new FontService();
 using var sprites = SpriteFactory.BuildAll(rendererHandle);
