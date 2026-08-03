@@ -58,6 +58,19 @@ public static class ShopRoom
         return true;
     }
 
+    /// <summary>
+    /// The one line that shows while nothing is open: the room, and an invitation to say what you came for.
+    /// Every shop starts here for the same reason the guild does — the picture is the thing worth looking at,
+    /// and a menu that is always up means it is never seen.
+    /// </summary>
+    public static void DrawPrompt(GameContext ctx, string text)
+    {
+        var hint = ControlHints.Menu(text);
+        var width = ControlHints.Width(ctx, 12, hint) + 20f;
+        ctx.Renderer.FillRect(SheetLeft, 366f, width, 22f, Colors.Rgb(0, 0, 0, 150));
+        ControlHints.Draw(ctx, SheetLeft + 10f, 370f, 12, Colors.Highlight, hint);
+    }
+
     /// <summary>Where the sheet's top edge lands for a given amount of content, before it is drawn.</summary>
     public static float TopFor(float contentHeight) =>
         Math.Max(TopLimit, SheetBottom - (contentHeight + Pad * 2));

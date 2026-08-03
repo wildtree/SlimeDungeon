@@ -23,6 +23,9 @@ public sealed class ShopScreen : IScreen
     private int _cursor;
     private string? _message;
 
+    /// <summary>False until the player asks for the counter, so walking in shows the shop rather than a list.</summary>
+    private bool _menuOpen;
+
     /// <summary>Shop equipment tops out at Rank B — anything above that (and every carry-capacity bag)
     /// only drops in dungeons, so there's always a reason to go adventuring instead of just shopping.</summary>
     private static readonly Rank[] ShopEquipmentRanks = { Rank.H, Rank.G, Rank.F, Rank.E, Rank.D, Rank.C, Rank.B };
@@ -100,13 +103,43 @@ public sealed class ShopScreen : IScreen
         var input = ctx.Input;
         var player = ctx.Player!;
 
+        // Until the counter is asked for there is nothing on screen but the shop itself.
+        if (!_menuOpen)
+        {
+            if (MenuNav.MenuRequested(input) || MenuNav.Confirmed(input))
+            {
+                _menuOpen = true;
+                _message = null;
+            }
+            else if (MenuNav.Cancelled(input))
+            {
+                ctx.Screens.ChangeTo(new GuildScreen());
+            }
+            return;
+        }
+
+        // The menu key puts the sheet down again from wherever you are, so the picture is never more than one
+        // press away.
+        if (MenuNav.MenuRequested(input))
+        {
+            _menuOpen = false;
+            _open = null;
+            _message = null;
+            return;
+        }
+
         if (MenuNav.Cancelled(input))
         {
-            // Cancel steps back one level: out of a department first, out of the shop only from the counter.
+            // Cancel steps back one level: out of a department first, off the counter only from the top.
             if (_open is null)
-                ctx.Screens.ChangeTo(new GuildScreen());
+            {
+                _menuOpen = false;
+                _message = null;
+            }
             else
+            {
                 _open = null;
+            }
             return;
         }
 
@@ -174,7 +207,9 @@ public sealed class ShopScreen : IScreen
         if (!painted)
             ctx.Fonts.DrawText(ctx.Renderer.Handle, "ショップ", 20, 16, 18, Colors.White);
 
-        if (_open is null)
+        if (!_menuOpen)
+            ShopRoom.DrawPrompt(ctx, "ご用件をどうぞ");
+        else if (_open is null)
             DrawCounter(ctx);
         else if (_open == Department.Sell)
             DrawList(ctx, SellRows(ctx, player));

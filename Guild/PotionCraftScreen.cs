@@ -15,6 +15,9 @@ public sealed class PotionCraftScreen : IScreen
     private Item? _selectedHerb;
     private string? _message;
 
+    /// <summary>False until the player asks, so walking in shows the shop rather than a list of herbs.</summary>
+    private bool _menuOpen;
+
     /// <summary>Herbs anywhere on the player, bag or readied item slot alike — a herb in an item slot is still
     /// stock the alchemist can work with, and hiding it would look like it had gone missing.</summary>
     private static List<Item> Herbs(Player player) =>
@@ -25,6 +28,30 @@ public sealed class PotionCraftScreen : IScreen
         var input = ctx.Input;
         var player = ctx.Player!;
 
+        if (!_menuOpen)
+        {
+            if (MenuNav.MenuRequested(input) || MenuNav.Confirmed(input))
+            {
+                _menuOpen = true;
+                _message = null;
+            }
+            else if (MenuNav.Cancelled(input))
+            {
+                ctx.Screens.ChangeTo(new GuildScreen());
+            }
+            return;
+        }
+
+        // The menu key clears the counter from wherever you are, back to just the room.
+        if (MenuNav.MenuRequested(input))
+        {
+            _menuOpen = false;
+            _phase = Phase.SelectHerb;
+            _cursor = 0;
+            _message = null;
+            return;
+        }
+
         if (MenuNav.Cancelled(input))
         {
             if (_phase == Phase.SelectPotionType)
@@ -34,7 +61,8 @@ public sealed class PotionCraftScreen : IScreen
             }
             else
             {
-                ctx.Screens.ChangeTo(new GuildScreen());
+                _menuOpen = false;
+                _message = null;
             }
             return;
         }
@@ -101,7 +129,9 @@ public sealed class PotionCraftScreen : IScreen
         if (!ShopRoom.DrawBackdrop(ctx, ctx.Sprites.PharmacyBackdrop))
             fonts.DrawText(r.Handle, "ポーション調合", 20, 16, 18, Colors.White);
 
-        if (_phase == Phase.SelectHerb)
+        if (!_menuOpen)
+            ShopRoom.DrawPrompt(ctx, "ご用件をどうぞ");
+        else if (_phase == Phase.SelectHerb)
             DrawHerbList(ctx, player);
         else
             DrawKindChoice(ctx);
