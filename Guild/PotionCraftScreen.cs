@@ -130,7 +130,7 @@ public sealed class PotionCraftScreen : IScreen
             fonts.DrawText(r.Handle, "ポーション調合", 20, 16, 18, Colors.White);
 
         if (!_menuOpen)
-            ShopRoom.DrawPrompt(ctx, "ご用件をどうぞ");
+            ShopRoom.DrawPrompt(ctx, "承りますわ");
         else if (_phase == Phase.SelectHerb)
             DrawHerbList(ctx, player);
         else

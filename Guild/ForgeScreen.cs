@@ -191,7 +191,7 @@ public sealed class ForgeScreen : IScreen
         var player = c.Player!;
         if (!_menuOpen)
         {
-            ShopRoom.DrawPrompt(c, "ご用件をどうぞ");
+            ShopRoom.DrawPrompt(c, "何か用か？");
             StatusPanel.Draw(c, ShopRoom.Size, 0, 400);
             return;
         }

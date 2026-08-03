@@ -208,7 +208,7 @@ public sealed class ShopScreen : IScreen
             ctx.Fonts.DrawText(ctx.Renderer.Handle, "ショップ", 20, 16, 18, Colors.White);
 
         if (!_menuOpen)
-            ShopRoom.DrawPrompt(ctx, "ご用件をどうぞ");
+            ShopRoom.DrawPrompt(ctx, "いらっしゃいませ");
         else if (_open is null)
             DrawCounter(ctx);
         else if (_open == Department.Sell)
