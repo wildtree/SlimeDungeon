@@ -40,6 +40,13 @@ public sealed class AudioService : IDisposable
     private float _startDelay;
 
     /// <summary>
+    /// Whether the running track is topped back up when it runs low. Everything in the game loops; the
+    /// requiem does not, because a lament that comes round again for a second verse stops being a lament and
+    /// starts being background music.
+    /// </summary>
+    private bool _loop = true;
+
+    /// <summary>
     /// Background music sits well under the effects so it never competes with a hit or a fanfare. At 0.32 the
     /// measured loudness of a track was within a few percent of a weapon hit's, which is not background music
     /// — this puts it roughly 10dB below the effects, quiet enough to notice only when listening for it.
@@ -125,13 +132,34 @@ public sealed class AudioService : IDisposable
     /// Hold the change for this long before switching. Combat uses it so the encounter sting is heard on its
     /// own rather than under the first bars of the battle theme; the outgoing track keeps playing until then.
     /// </param>
-    public void PlayMusic(MusicId? id, float delaySeconds = 0)
+    /// <param name="loop">
+    /// False to let the track play through once and leave silence behind it.
+    /// </param>
+    public void PlayMusic(MusicId? id, float delaySeconds = 0, bool loop = true)
     {
         if (!Available || _musicStream == IntPtr.Zero || _requested == id)
             return;
 
         _requested = id;
         _startDelay = delaySeconds;
+        _loop = loop;
+    }
+
+    /// <summary>
+    /// Cuts whatever is playing this instant, rather than at the next track change. Used when the player
+    /// dismisses the grave: the requiem should stop when they choose to walk away from it, not fade under the
+    /// title screen's theme.
+    /// </summary>
+    public void StopMusic()
+    {
+        if (!Available || _musicStream == IntPtr.Zero)
+            return;
+
+        SDL.ClearAudioStream(_musicStream);
+        _requested = null;
+        _started = null;
+        _startDelay = 0;
+        _loop = true;
     }
 
     /// <summary>
@@ -160,7 +188,7 @@ public sealed class AudioService : IDisposable
                 SDL.PutAudioStreamData(_musicStream, fresh, fresh.Length);
         }
 
-        if (_started is not { } playing || !bank.TryGetValue(playing, out var data))
+        if (!_loop || _started is not { } playing || !bank.TryGetValue(playing, out var data))
             return;
 
         var queuedSeconds = SDL.GetAudioStreamQueued(_musicStream) / (float)(MusicBank.SampleRate * sizeof(short));

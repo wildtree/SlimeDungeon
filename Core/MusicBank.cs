@@ -1,6 +1,6 @@
 namespace SlimeDungeon.Core;
 
-public enum MusicId { Title, Guild, Dungeon, Battle, Registration }
+public enum MusicId { Title, Guild, Dungeon, Battle, Registration, Requiem }
 
 /// <summary>
 /// The three background pieces, synthesised like everything else in this game rather than loaded from files.
@@ -55,6 +55,18 @@ public static class MusicBank
     /// <summary>Detuned and barely modulated — an uneasy, wavering sustain for the dungeon.</summary>
     private static readonly Voice Drone = new(Ratio: 1.0, Index: 1.4, IndexDecay: 0.25, Attack: 0.6, Release: 1.2, Amp: 0.18, Detune: 0.7);
 
+    /// <summary>
+    /// The mourning voice. A reed like <see cref="Horn"/>, but it takes a fifth of a second to speak and lets
+    /// go slowly, so every note sounds breathed rather than blown — it cannot be made to sound triumphant.
+    /// </summary>
+    private static readonly Voice Lament = new(Ratio: 1.0, Index: 1.7, IndexDecay: 0.7, Attack: 0.20, Release: 0.60, Amp: 0.22);
+
+    /// <summary>
+    /// A funeral bell. A more clashing ratio than <see cref="Bell"/> and a modulation that barely decays, so
+    /// the strike keeps its edge and rings on rather than turning into a clean tone.
+    /// </summary>
+    private static readonly Voice Toll = new(Ratio: 2.75, Index: 4.6, IndexDecay: 1.0, Attack: 0.004, Release: 1.6, Amp: 0.17);
+
     public static IReadOnlyDictionary<MusicId, short[]> BuildAll() => new Dictionary<MusicId, short[]>
     {
         [MusicId.Title] = Title(),
@@ -62,6 +74,7 @@ public static class MusicBank
         [MusicId.Dungeon] = Dungeon(),
         [MusicId.Battle] = Battle(),
         [MusicId.Registration] = Registration(),
+        [MusicId.Requiem] = Requiem(),
     };
 
     // ---- The pieces --------------------------------------------------------------------------
@@ -369,11 +382,75 @@ public static class MusicBank
         return Render(30.0, (Bass, bass), (EPiano, comp), (Horn, lead), (Bell, bells));
     }
 
+    /// <summary>
+    /// Requiem: played once over the grave, and the only piece here that is not written to come round again.
+    ///
+    /// It is built on the descending lament bass — D, C, B♭, A — that has meant grief in written music for
+    /// four hundred years, under a chorale that moves one chord every three seconds and a reed line that only
+    /// ever steps to the note next to it. A bell tolls every other bar. It comes home to D at the end but with
+    /// the third taken out of the chord, so the last thing heard is neither major nor minor — open, and not
+    /// saying anything about it — and then the graveyard is quiet.
+    ///
+    /// Levelled well below the rest of the soundtrack. It should sound like something heard from some way off.
+    /// </summary>
+    private static short[] Requiem()
+    {
+        const double slowBar = 3.0;
+
+        // Dm  Dm/C  B♭  A   Dm  Gm  B♭  A   Dm  D(no 3rd)
+        int[][] chords =
+        [
+            [50, 53, 57], [50, 53, 57], [50, 53, 58], [49, 52, 57],
+            [50, 53, 57], [50, 55, 58], [50, 53, 58], [49, 52, 57],
+            [50, 53, 57], [50, 57, 62],
+        ];
+
+        // The lament bass. It walks down away from the tonic and only returns at the end, which is what makes
+        // the chorale above it feel like it is sinking even where the chords repeat.
+        int[] pedals = [38, 36, 34, 33, 38, 31, 34, 33, 38, 38];
+
+        var pad = new List<N>();
+        var bass = new List<N>();
+        for (var bar = 0; bar < chords.Length; bar++)
+        {
+            var t = bar * slowBar;
+            foreach (var note in chords[bar])
+                pad.Add(new N(t, slowBar * 0.97, note, 0.8));
+
+            bass.Add(new N(t, slowBar * 0.9, pedals[bar], 0.75));
+        }
+
+        // Three phrases, each one entering after the chord it sits on so the harmony is heard first. Almost
+        // entirely stepwise, and it turns back down every time it reaches for something higher.
+        List<N> lead =
+        [
+            new(1.0, 2.0, 69), new(3.3, 1.5, 70), new(5.0, 2.0, 69),
+            new(7.2, 1.2, 65), new(8.5, 1.2, 67), new(9.8, 2.0, 69),
+
+            new(12.4, 1.8, 74), new(14.4, 1.4, 72), new(16.0, 2.2, 70),
+            new(18.4, 1.4, 69), new(20.0, 1.4, 70), new(21.6, 2.2, 73),
+
+            new(24.4, 1.9, 74), new(26.6, 3.2, 69, 0.9),
+        ];
+
+        // Every other bar, and one last stroke an octave down as the reed lets go.
+        List<N> toll =
+        [
+            new(0.0, 2.4, 74, 0.55), new(6.0, 2.4, 74, 0.45), new(12.0, 2.4, 74, 0.5),
+            new(18.0, 2.4, 74, 0.45), new(24.0, 2.4, 74, 0.5), new(27.2, 2.6, 62, 0.4),
+        ];
+
+        return Render(30.0, RequiemRms, (Pad, pad), (Pad, bass), (Lament, lead), (Toll, toll));
+    }
+
     // ---- Synthesis ---------------------------------------------------------------------------
 
     private static double Midi(int note) => 440.0 * Math.Pow(2, (note - 69) / 12.0);
 
-    private static short[] Render(double seconds, params (Voice Voice, List<N> Notes)[] parts)
+    private static short[] Render(double seconds, params (Voice Voice, List<N> Notes)[] parts) =>
+        Render(seconds, TargetRms, parts);
+
+    private static short[] Render(double seconds, double loudness, params (Voice Voice, List<N> Notes)[] parts)
     {
         var buf = new float[(int)(seconds * SampleRate)];
 
@@ -391,7 +468,7 @@ public static class MusicBank
             buf[buf.Length - 1 - i] *= g;
         }
 
-        return Normalise(buf);
+        return Normalise(buf, loudness);
     }
 
     /// <summary>
@@ -451,6 +528,13 @@ public static class MusicBank
     /// never also changes the volume.</summary>
     private const double TargetRms = 0.19;
 
+    /// <summary>
+    /// The requiem alone is levelled below the rest, about 5dB down. It plays over a still screen with no
+    /// effects on top of it and nothing to compete with, so matching the other tracks would make it the
+    /// loudest thing in the game by a distance — which is the opposite of what it is for.
+    /// </summary>
+    private const double RequiemRms = 0.105;
+
     /// <summary>The most any single sample may reach, so a track with hard attacks still cannot clip.</summary>
     private const double PeakCeiling = 0.85;
 
@@ -459,7 +543,7 @@ public static class MusicBank
     /// — the battle theme, all stabs and short bass notes — measurably and audibly quieter than a piece of
     /// sustained chords, which is exactly backwards for the one that is supposed to raise the pulse.
     /// </summary>
-    private static short[] Normalise(float[] buf)
+    private static short[] Normalise(float[] buf, double loudness)
     {
         double sumSquares = 0;
         var max = 0.0;
@@ -473,7 +557,7 @@ public static class MusicBank
         if (rms <= 1e-6 || max <= 1e-6)
             return new short[buf.Length];
 
-        var gain = Math.Min(TargetRms / rms, PeakCeiling / max);
+        var gain = Math.Min(loudness / rms, PeakCeiling / max);
 
         var output = new short[buf.Length];
         for (var i = 0; i < buf.Length; i++)

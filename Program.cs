@@ -78,8 +78,8 @@ while (!input.QuitRequested)
     // itself. The guild has half a dozen counters hanging off it and the dungeon hands off to combat and
     // back; deriving it centrally means every one of those is covered, and moving between them is seamless
     // because asking for the track already playing does nothing.
-    var (wantedMusic, musicDelay) = MusicForScreen(screens.Current);
-    audio.PlayMusic(wantedMusic, musicDelay);
+    var (wantedMusic, musicDelay, loopMusic) = MusicForScreen(screens.Current);
+    audio.PlayMusic(wantedMusic, musicDelay, loopMusic);
     audio.UpdateMusic(dt);
 
     // Snapshot overlay state from *before* this frame's key presses are applied, so the same keypress that
@@ -104,20 +104,23 @@ while (!input.QuitRequested)
     renderer.Present();
 }
 
-static (MusicId? Track, float Delay) MusicForScreen(IScreen screen) => screen switch
+static (MusicId? Track, float Delay, bool Loop) MusicForScreen(IScreen screen) => screen switch
 {
-    TitleScreen => (MusicId.Title, 0f),
+    TitleScreen => (MusicId.Title, 0f, true),
     // Registration is the one moment that is purely about what is ahead, so it gets its own theme rather
     // than the guild's everyday one.
-    NamingScreen => (MusicId.Registration, 0f),
+    NamingScreen => (MusicId.Registration, 0f, true),
     // Held back so the encounter sting is heard on its own; the dungeon theme keeps running underneath it
     // until the battle music takes over.
-    SlimeDungeon.Combat.CombatScreen => (MusicId.Battle, 2.9f),
-    SlimeDungeon.Dungeon.DungeonScreen => (MusicId.Dungeon, 0f),
-    // Silence when a character has died. Anything cheerful over that screen would be grotesque.
-    GameOverScreen => (null, 0f),
+    SlimeDungeon.Combat.CombatScreen => (MusicId.Battle, 2.9f, true),
+    SlimeDungeon.Dungeon.DungeonScreen => (MusicId.Dungeon, 0f, true),
+    // The grave gets a lament, and only the one time through. No delay: the battle theme is still running
+    // when the player dismisses the last of the fight, and holding the change would leave it playing over
+    // the headstone. It is not looped either — a piece that keeps starting again is one the player stops
+    // hearing, and this screen is meant to be sat with in the quiet once it has finished.
+    GameOverScreen => (MusicId.Requiem, 0f, false),
     // Everything else is the guild and its counters.
-    _ => (MusicId.Guild, 0f),
+    _ => (MusicId.Guild, 0f, true),
 };
 
 SDL.StopTextInput(window);

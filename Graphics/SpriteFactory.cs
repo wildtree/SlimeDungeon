@@ -17,6 +17,9 @@ public sealed class SpriteFactory : IDisposable
     /// <summary>Drop a 400x400 illustration here to replace the procedurally drawn guild room.</summary>
     public const string GuildArtFile = "guild.png";
 
+    /// <summary>The graveyard shown when a character dies. Optional, like the guild room.</summary>
+    public const string RipArtFile = "rip.png";
+
     public const int MenuBackdropWidth = 640;
     public const int MenuBackdropHeight = 400;
 
@@ -39,6 +42,9 @@ public sealed class SpriteFactory : IDisposable
     /// <summary>The "SLIME DUNGEON" wordmark and the dungeon-entrance scene behind it, both title-screen only.</summary>
     public IntPtr TitleLogo { get; private set; }
     public IntPtr TitleBackdrop { get; private set; }
+
+    /// <summary>The graveyard behind the death screen, or zero if no artwork was supplied.</summary>
+    public IntPtr RipBackdrop { get; private set; }
 
     /// <summary>Small markers for the two kinds of guild work, so the quest board can be scanned by shape.</summary>
     public IntPtr QuestGatherIcon { get; private set; }
@@ -118,6 +124,12 @@ public sealed class SpriteFactory : IDisposable
         {
             GuildBackdrop = Bake(renderer, BuildGuildBackdrop());
         }
+        // Optional, and left at zero when absent — the death screen falls back to a plain dark field, which is
+        // no worse than what it had before any artwork existed.
+        RipBackdrop = ArtLoader.TryLoad(renderer, RipArtFile);
+        if (RipBackdrop != IntPtr.Zero)
+            _allTextures.Add(RipBackdrop);
+
         MenuBackdrop = Bake(renderer, BuildMenuBackdrop());
         TitleLogo = Bake(renderer, TitleArt.BuildLogo());
         TitleBackdrop = Bake(renderer, TitleArt.BuildBackdrop());
