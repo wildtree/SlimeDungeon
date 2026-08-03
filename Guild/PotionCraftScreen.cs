@@ -93,46 +93,81 @@ public sealed class PotionCraftScreen : IScreen
     public void Draw(GameContext ctx)
     {
         var r = ctx.Renderer;
-        r.Clear(Colors.Rgb(24, 20, 16));
-        r.DrawTexture(ctx.Sprites.MenuBackdrop, 0, 0, SpriteFactory.MenuBackdropWidth, SpriteFactory.MenuBackdropHeight);
         var fonts = ctx.Fonts;
         var player = ctx.Player!;
 
-        fonts.DrawText(r.Handle, "ポーション調合", 20, 16, 18, Colors.White);
+        // The elf's shop letters its own name across the top of the picture, so ours is only drawn when the
+        // illustration is missing and the old panelled wall is showing instead.
+        if (!ShopRoom.DrawBackdrop(ctx, ctx.Sprites.PharmacyBackdrop))
+            fonts.DrawText(r.Handle, "ポーション調合", 20, 16, 18, Colors.White);
 
-        var y = 60f;
         if (_phase == Phase.SelectHerb)
+            DrawHerbList(ctx, player);
+        else
+            DrawKindChoice(ctx);
+
+        StatusPanel.Draw(ctx, ShopRoom.Size, 0, 400);
+    }
+
+    /// <summary>
+    /// Whatever herbs are on the character. Usually a handful, so the sheet normally sits low on the workbench
+    /// and leaves the alchemist and her flasks in view.
+    /// </summary>
+    private void DrawHerbList(GameContext ctx, Player player)
+    {
+        var r = ctx.Renderer;
+        var fonts = ctx.Fonts;
+
+        var herbs = Herbs(player);
+        var labels = herbs
+            .Select(h => $"{h.Name} x{h.Quantity}  (加工費 {(int)h.Rank * (int)h.Rank * 10}G)")
+            .ToArray();
+
+        const float rowStep = 17f;
+        var rows = Math.Max(labels.Length, 1);
+        var top = ShopRoom.Draw(ctx, 24f + rows * rowStep + ShopRoom.FooterHeight);
+        var x = ShopRoom.ContentX;
+
+        fonts.DrawText(r.Handle, "どの薬草を加工しますか", x, top, 12, Colors.Highlight);
+
+        var y = top + 26f;
+        if (labels.Length == 0)
         {
-            fonts.DrawText(r.Handle, "薬草を選ぶ:", 20, y, 12, Colors.Highlight);
-            y += 20;
-            var herbs = Herbs(player);
-            var labels = herbs.Select(h => $"{h.Name} x{h.Quantity}  (加工費 {(int)h.Rank * (int)h.Rank * 10}G)").ToArray();
-            var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 11);
-            for (var i = 0; i < labels.Length; i++)
-            {
-                MenuNav.DrawRow(ctx, 20, y, maxWidth, 16, labels[i], 11, i == _cursor);
-                y += 16;
-            }
-            if (herbs.Count == 0)
-                fonts.DrawText(r.Handle, "薬草を持っていない", 20, y, 11, Colors.Border);
+            fonts.DrawText(r.Handle, "薬草を持っていない", x, y, 11, Colors.Border);
         }
         else
         {
-            fonts.DrawText(r.Handle, $"{_selectedHerb?.Name} をどちらに加工する？", 20, y, 12, Colors.Highlight);
-            y += 24;
-            var labels = new[] { "HPポーション", "MPポーション" };
-            var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 12);
+            var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 11);
             for (var i = 0; i < labels.Length; i++)
             {
-                MenuNav.DrawRow(ctx, 20, y, maxWidth, 18, labels[i], 12, i == _cursor);
-                y += 20;
+                r.DrawTexture(ctx.Sprites.ItemIcon(herbs[i]), x, y - 1, 14, 14);
+                MenuNav.DrawRow(ctx, x + 22, y, maxWidth, 16, labels[i], 11, i == _cursor);
+                y += rowStep;
             }
         }
 
-        if (_message is not null)
-            fonts.DrawText(r.Handle, _message, 20, 345, 11, Colors.Gold);
-        ControlHints.Draw(ctx, 20, 370, 11, Colors.Border, ControlHints.Confirm("選ぶ"), ControlHints.Cancel("戻る"));
+        ShopRoom.DrawFooter(ctx, _message, ControlHints.Confirm("選ぶ"), ControlHints.Cancel("戻る"));
+    }
 
-        StatusPanel.Draw(ctx, 400, 0, 400);
+    private void DrawKindChoice(GameContext ctx)
+    {
+        var r = ctx.Renderer;
+        var fonts = ctx.Fonts;
+
+        var top = ShopRoom.Draw(ctx, 28f + 2 * 22f + ShopRoom.FooterHeight);
+        var x = ShopRoom.ContentX;
+
+        fonts.DrawText(r.Handle, $"{_selectedHerb?.Name} をどちらに加工する？", x, top, 12, Colors.Highlight);
+
+        var labels = new[] { "HPポーション", "MPポーション" };
+        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 12);
+        var y = top + 30f;
+        for (var i = 0; i < labels.Length; i++)
+        {
+            MenuNav.DrawRow(ctx, x + 8, y, maxWidth + 12, 19, labels[i], 12, i == _cursor);
+            y += 22f;
+        }
+
+        ShopRoom.DrawFooter(ctx, _message, ControlHints.Confirm("決める"), ControlHints.Cancel("戻る"));
     }
 }

@@ -167,60 +167,50 @@ public sealed class ShopScreen : IScreen
 
     public void Draw(GameContext ctx)
     {
-        var r = ctx.Renderer;
-        r.Clear(Colors.Rgb(24, 20, 16));
-        r.DrawTexture(ctx.Sprites.MenuBackdrop, 0, 0, SpriteFactory.MenuBackdropWidth, SpriteFactory.MenuBackdropHeight);
-        var fonts = ctx.Fonts;
+        var painted = ShopRoom.DrawBackdrop(ctx, ctx.Sprites.ShopBackdrop);
         var player = ctx.Player!;
 
-        fonts.DrawText(r.Handle, "ショップ", 20, 16, 18, Colors.White);
+        // The illustration letters "商店" on its own crest, so our heading only appears over the plain wall.
+        if (!painted)
+            ctx.Fonts.DrawText(ctx.Renderer.Handle, "ショップ", 20, 16, 18, Colors.White);
 
         if (_open is null)
-        {
             DrawCounter(ctx);
-            return;
-        }
-
-        fonts.DrawText(r.Handle, DepartmentLabel(_open.Value), 120, 21, 13, Colors.Highlight);
-
-        var y = 56f;
-        if (_open == Department.Sell)
-            DrawSellList(ctx, player, ref y);
+        else if (_open == Department.Sell)
+            DrawList(ctx, SellRows(ctx, player));
         else
-            DrawStock(ctx, StockOf(_open.Value), ref y);
+            DrawList(ctx, StockRows(ctx, StockOf(_open.Value)));
 
-        if (_message is not null)
-            fonts.DrawText(r.Handle, _message, 20, 345, 11, Colors.Gold);
-        ControlHints.Draw(ctx, 20, 370, 10, Colors.Border,
-            ControlHints.Confirm("決定"), ControlHints.Cancel("売り場へ戻る"));
-
-        StatusPanel.Draw(ctx, 400, 0, 400);
+        StatusPanel.Draw(ctx, ShopRoom.Size, 0, 400);
     }
 
+    /// <summary>
+    /// The four departments. Short enough that the sheet stays down on the counter and the shopkeeper is left
+    /// looking over the top of it, which is the whole reason for sizing these panels to their contents.
+    /// </summary>
     private void DrawCounter(GameContext ctx)
     {
         var r = ctx.Renderer;
         var fonts = ctx.Fonts;
 
-        fonts.DrawText(r.Handle, "いらっしゃい。何をお探しで？", 20, 48, 12, Colors.Highlight);
+        const float rowStep = 27f;
+        var top = ShopRoom.Draw(ctx, 22f + Departments.Length * rowStep + ShopRoom.FooterHeight);
+        var x = ShopRoom.ContentX;
+
+        fonts.DrawText(r.Handle, "いらっしゃい。何をお探しで？", x, top, 12, Colors.Highlight);
 
         var labels = Departments.Select(DepartmentLabel).ToArray();
-        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 15);
-        var y = 96f;
+        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 14);
+        var y = top + 26f;
         for (var i = 0; i < labels.Length; i++)
         {
-            MenuNav.DrawRow(ctx, 40, y, maxWidth + 20, 26, labels[i], 15, i == _departmentCursor);
-            fonts.DrawText(r.Handle, Blurb(Departments[i]), 40 + maxWidth + 44, y + 4, 10,
+            MenuNav.DrawRow(ctx, x + 8, y, maxWidth + 12, 22, labels[i], 14, i == _departmentCursor);
+            fonts.DrawText(r.Handle, Blurb(Departments[i]), x + maxWidth + 34, y + 3, 10,
                 i == _departmentCursor ? Colors.Highlight : Colors.Border);
-            y += 32;
+            y += rowStep;
         }
 
-        if (_message is not null)
-            fonts.DrawText(r.Handle, _message, 20, 345, 11, Colors.Gold);
-        ControlHints.Draw(ctx, 20, 370, 10, Colors.Border,
-            ControlHints.Confirm("選ぶ"), ControlHints.Cancel("戻る"));
-
-        StatusPanel.Draw(ctx, 400, 0, 400);
+        ShopRoom.DrawFooter(ctx, _message, ControlHints.Confirm("選ぶ"), ControlHints.Cancel("戻る"));
     }
 
     private static string Blurb(Department department) => department switch
@@ -231,50 +221,62 @@ public sealed class ShopScreen : IScreen
         _ => "持ち物を売る",
     };
 
-    private void DrawStock(GameContext ctx, Func<Item>[] stock, ref float y)
+    /// <summary>One line of the department's list: what it looks like, and what it says.</summary>
+    private readonly record struct Row(IntPtr Icon, string Label);
+
+    private static Row[] StockRows(GameContext ctx, Func<Item>[] stock) =>
+        stock.Select(make => make())
+             .Select(i => new Row(ctx.Sprites.ItemIcon(i), $"{i.Name}  {i.Value}G"))
+             .ToArray();
+
+    private static Row[] SellRows(GameContext ctx, Player player) =>
+        player.Bag.Select(i => new Row(ctx.Sprites.ItemIcon(i), $"{i.Name} x{i.Quantity}  {i.SellValue}G"))
+                  .ToArray();
+
+    /// <summary>
+    /// Stock and the sell list are the same list with different words in it, so they share one drawing pass.
+    /// A full department fills the sheet to its ceiling; a bag with three things in it does not.
+    /// </summary>
+    private void DrawList(GameContext ctx, Row[] rows)
     {
         var r = ctx.Renderer;
         var fonts = ctx.Fonts;
 
-        var items = stock.Select(make => make()).ToArray();
-        var labels = items.Select(i => $"{i.Name}  {i.Value}G").ToArray();
-        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 11);
-        var scrollTop = Math.Clamp(_cursor - VisibleRows / 2, 0, Math.Max(0, labels.Length - VisibleRows));
+        const float rowStep = 16f;
+        var shown = Math.Min(rows.Length, VisibleRows);
+        var top = ShopRoom.Draw(ctx, 22f + Math.Max(shown, 1) * rowStep + ShopRoom.FooterHeight);
+        var x = ShopRoom.ContentX;
 
-        for (var i = scrollTop; i < Math.Min(labels.Length, scrollTop + VisibleRows); i++)
+        var heading = DepartmentLabel(_open!.Value);
+        fonts.DrawText(r.Handle, heading, x, top, 12, Colors.Highlight);
+
+        // The position counter goes on the heading line, right-aligned, where it does not steal a row.
+        if (rows.Length > VisibleRows)
         {
-            r.DrawTexture(ctx.Sprites.ItemIcon(items[i]), 20, y - 1, 14, 14);
-            MenuNav.DrawRow(ctx, 40, y, maxWidth, 15, labels[i], 11, i == _cursor);
-            y += 16;
+            var counter = ControlHints.Direction($"{_cursor + 1}/{rows.Length}");
+            var width = ControlHints.Width(ctx, 10, counter);
+            ControlHints.Draw(ctx, ShopRoom.SheetRight - ShopRoom.Pad - width, top + 2, 10, Colors.Border, counter);
         }
 
-        if (labels.Length > VisibleRows)
-            ControlHints.Draw(ctx, 300, 40, 10, Colors.Border, ControlHints.Direction($"{_cursor + 1}/{labels.Length}"));
-    }
-
-    private void DrawSellList(GameContext ctx, Player player, ref float y)
-    {
-        var r = ctx.Renderer;
-        var fonts = ctx.Fonts;
-
-        if (player.Bag.Count == 0)
+        var y = top + 24f;
+        if (rows.Length == 0)
         {
-            fonts.DrawText(r.Handle, "売る物がない", 20, y, 12, Colors.Border);
-            return;
+            fonts.DrawText(r.Handle, _open == Department.Sell ? "売る物がない" : "品切れだ", x, y, 11, Colors.Border);
+        }
+        else
+        {
+            var labelWidth = MenuNav.MaxLabelWidth(ctx, rows.Select(row => row.Label).ToArray(), 11);
+            var scrollTop = Math.Clamp(_cursor - VisibleRows / 2, 0, Math.Max(0, rows.Length - VisibleRows));
+
+            for (var i = scrollTop; i < Math.Min(rows.Length, scrollTop + VisibleRows); i++)
+            {
+                r.DrawTexture(rows[i].Icon, x, y - 1, 14, 14);
+                MenuNav.DrawRow(ctx, x + 22, y, labelWidth, 15, rows[i].Label, 11, i == _cursor);
+                y += rowStep;
+            }
         }
 
-        var labels = player.Bag.Select(i => $"{i.Name} x{i.Quantity}  {i.SellValue}G").ToArray();
-        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 11);
-        var scrollTop = Math.Clamp(_cursor - VisibleRows / 2, 0, Math.Max(0, labels.Length - VisibleRows));
-
-        for (var i = scrollTop; i < Math.Min(labels.Length, scrollTop + VisibleRows); i++)
-        {
-            r.DrawTexture(ctx.Sprites.ItemIcon(player.Bag[i]), 20, y - 1, 14, 14);
-            MenuNav.DrawRow(ctx, 40, y, maxWidth, 15, labels[i], 11, i == _cursor);
-            y += 16;
-        }
-
-        if (labels.Length > VisibleRows)
-            ControlHints.Draw(ctx, 300, 40, 10, Colors.Border, ControlHints.Direction($"{_cursor + 1}/{labels.Length}"));
+        ShopRoom.DrawFooter(ctx, _message,
+            ControlHints.Confirm("決定"), ControlHints.Cancel("売り場へ戻る"));
     }
 }

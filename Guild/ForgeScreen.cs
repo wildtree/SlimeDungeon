@@ -158,14 +158,11 @@ public sealed class ForgeScreen : IScreen
 
     public void Draw(GameContext c)
     {
-        var r = c.Renderer;
-        r.Clear(Colors.Rgb(24, 20, 16));
-        r.DrawTexture(c.Sprites.MenuBackdrop, 0, 0, SpriteFactory.MenuBackdropWidth, SpriteFactory.MenuBackdropHeight);
-        var fonts = c.Fonts;
+        // The forge's own signboard is painted into the picture, so the heading is only for the fallback wall.
+        if (!ShopRoom.DrawBackdrop(c, c.Sprites.SmithBackdrop))
+            c.Fonts.DrawText(c.Renderer.Handle, "鍛冶", 20, 16, 18, Colors.White);
+
         var player = c.Player!;
-
-        fonts.DrawText(r.Handle, "鍛冶", 20, 16, 18, Colors.White);
-
         switch (_phase)
         {
             case Phase.Top: DrawTop(c, player); break;
@@ -174,47 +171,50 @@ public sealed class ForgeScreen : IScreen
             default: DrawPieceList(c, player); break;
         }
 
-        if (_message is not null)
-            fonts.DrawText(r.Handle, _message, 20, 345, 11, Colors.Gold);
-        ControlHints.Draw(c, 20, 370, 11, Colors.Border,
+        ShopRoom.DrawFooter(c, _message,
             ControlHints.Direction("選ぶ"), ControlHints.Confirm("決定"), ControlHints.Cancel("戻る"));
 
-        StatusPanel.Draw(c, 400, 0, 400);
+        StatusPanel.Draw(c, ShopRoom.Size, 0, 400);
     }
 
-    // Columns are drawn at fixed pixel positions rather than by padding the strings. Japanese glyphs are
-    // double-width and the names run from four characters to seven, so string padding left the ore counts and
-    // the tallies stepping raggedly in and out across the list.
-    private const float SetNameX = 24f;
-    private const float SetStockX = 128f;
-    private const float SetTallyX = 300f;
-    private const float RowWidth = 356f;
+    // Columns are drawn at fixed offsets from the sheet's left edge rather than by padding the strings.
+    // Japanese glyphs are double-width and the names run from four characters to seven, so string padding left
+    // the ore counts and the tallies stepping raggedly in and out across the list.
+    private static float SetNameX => ShopRoom.ContentX + 4f;
+    private static float SetStockX => ShopRoom.ContentX + 108f;
+    private static float SetTallyX => ShopRoom.ContentX + 268f;
+    private static float RowWidth => ShopRoom.ContentWidth;
 
     private void DrawTop(GameContext c, Player player)
     {
         var r = c.Renderer;
         var fonts = c.Fonts;
 
-        fonts.DrawText(r.Handle, "何をしますか", 20, 44, 12, Colors.Highlight);
-
         var entries = Enum.GetValues<TopEntry>();
-        var y = 68f;
+        var height = 24f + entries.Length * 22f + 12f + 28f + 22f + 16f + Metals.All.Count() * 15f
+                     + ShopRoom.FooterHeight;
+        var top = ShopRoom.Draw(c, height);
+        var x = ShopRoom.ContentX;
+
+        fonts.DrawText(r.Handle, "何をしますか", x, top, 12, Colors.Highlight);
+
+        var y = top + 24f;
         for (var i = 0; i < entries.Length; i++)
         {
             var label = entries[i] == TopEntry.Forge ? "武具を作る" : "素材を預ける";
-            MenuNav.DrawRow(c, 20, y, RowWidth, 20, label, 12, i == _topCursor);
+            MenuNav.DrawRow(c, x, y, RowWidth, 20, label, 12, i == _topCursor);
             y += 22;
         }
 
         y += 12;
-        fonts.DrawText(r.Handle, "預けた素材は加工にだけ使えます。", 20, y, 10, Colors.Border);
-        fonts.DrawText(r.Handle, "売却やクエストの納品には鞄の素材が必要です。", 20, y + 14, 10, Colors.Border);
+        fonts.DrawText(r.Handle, "預けた素材は加工にだけ使えます。", x, y, 10, Colors.Border);
+        fonts.DrawText(r.Handle, "売却やクエストの納品には鞄の素材が必要です。", x, y + 14, 10, Colors.Border);
 
         // The ledger, so both halves are visible before choosing either menu.
-        y += 38;
-        fonts.DrawText(r.Handle, "素材", 24, y, 11, Colors.Highlight);
-        fonts.DrawText(r.Handle, "鞄", 150, y, 11, Colors.Highlight);
-        fonts.DrawText(r.Handle, "預け", 210, y, 11, Colors.Highlight);
+        y += 36;
+        fonts.DrawText(r.Handle, "素材", SetNameX, y, 11, Colors.Highlight);
+        fonts.DrawText(r.Handle, "鞄", SetNameX + 126, y, 11, Colors.Highlight);
+        fonts.DrawText(r.Handle, "預け", SetNameX + 186, y, 11, Colors.Highlight);
         y += 16;
 
         foreach (var metal in Metals.All)
@@ -222,10 +222,10 @@ public sealed class ForgeScreen : IScreen
             var carried = player.CarriedMaterial(metal.Metal);
             var stored = player.DepositedMaterial(metal.Metal);
             var lit = carried > 0 || stored > 0;
-            var color = lit ? Colors.White : Colors.Rgb(96, 92, 88);
-            fonts.DrawText(r.Handle, metal.OreName, 24, y, 11, color);
-            fonts.DrawText(r.Handle, carried > 0 ? $"{carried}" : "-", 150, y, 11, color);
-            fonts.DrawText(r.Handle, stored > 0 ? $"{stored}" : "-", 210, y, 11,
+            var color = lit ? Colors.White : Colors.Rgb(128, 122, 114);
+            fonts.DrawText(r.Handle, metal.OreName, SetNameX, y, 11, color);
+            fonts.DrawText(r.Handle, carried > 0 ? $"{carried}" : "-", SetNameX + 126, y, 11, color);
+            fonts.DrawText(r.Handle, stored > 0 ? $"{stored}" : "-", SetNameX + 186, y, 11,
                 stored > 0 ? Colors.Gold : color);
             y += 15;
         }
@@ -236,22 +236,30 @@ public sealed class ForgeScreen : IScreen
         var r = c.Renderer;
         var fonts = c.Fonts;
 
-        fonts.DrawText(r.Handle, "素材を預ける", 20, 44, 12, Colors.Highlight);
-        fonts.DrawText(r.Handle, "鞄の空きが増えますが、売却・納品はできなくなります", 20, 62, 10, Colors.Border);
-
         var ores = CarriedOres(player);
+        // With nothing to hand over there is one line to say so and no "決定で…" note under it, so the sheet
+        // shrinks to match rather than leaving a band of empty panel across the forge floor.
+        var height = ores.Count == 0
+            ? 42f + 18f + ShopRoom.FooterHeight
+            : 42f + ores.Count * 18f + 22f + ShopRoom.FooterHeight;
+        var top = ShopRoom.Draw(c, height);
+        var x = ShopRoom.ContentX;
+
+        fonts.DrawText(r.Handle, "素材を預ける", x, top, 12, Colors.Highlight);
+        fonts.DrawText(r.Handle, "鞄の空きが増えますが、売却・納品はできなくなります", x, top + 18, 10, Colors.Border);
+
+        var y = top + 42f;
         if (ores.Count == 0)
         {
-            fonts.DrawText(r.Handle, "預けられる素材を持っていない", 20, 90, 11, Colors.Border);
+            fonts.DrawText(r.Handle, "預けられる素材を持っていない", x, y, 11, Colors.Border);
             return;
         }
 
-        var y = 86f;
         for (var i = 0; i < ores.Count; i++)
         {
             var metal = ores[i];
             var selected = i == _depositCursor;
-            MenuNav.DrawRow(c, 20, y, RowWidth, 18, "", 11, selected);
+            MenuNav.DrawRow(c, x, y, RowWidth, 18, "", 11, selected);
 
             var text = selected ? Colors.Black : Colors.White;
             var dim = selected ? Colors.Black : Colors.Border;
@@ -261,7 +269,7 @@ public sealed class ForgeScreen : IScreen
             y += 18;
         }
 
-        fonts.DrawText(r.Handle, "決定で1つずつ預けます", 20, y + 10, 10, Colors.Border);
+        fonts.DrawText(r.Handle, "決定で1つずつ預けます", x, y + 6, 10, Colors.Border);
     }
 
     private void DrawSetList(GameContext c, Player player)
@@ -269,13 +277,17 @@ public sealed class ForgeScreen : IScreen
         var r = c.Renderer;
         var fonts = c.Fonts;
 
-        fonts.DrawText(r.Handle, "素材を選ぶ", 20, 44, 12, Colors.Highlight);
+        var height = 24f + Sets.Length * 17f + 26f + ShopRoom.FooterHeight;
+        var top = ShopRoom.Draw(c, height);
+        var x = ShopRoom.ContentX;
 
-        var y = 64f;
+        fonts.DrawText(r.Handle, "素材を選ぶ", x, top, 12, Colors.Highlight);
+
+        var y = top + 24f;
         for (var i = 0; i < Sets.Length; i++)
         {
             var set = Sets[i];
-            MenuNav.DrawRow(c, 20, y, RowWidth, 17, "", 11, i == _setCursor);
+            MenuNav.DrawRow(c, x, y, RowWidth, 17, "", 11, i == _setCursor);
 
             var selected = i == _setCursor;
             var text = selected ? Colors.Black : Colors.White;
@@ -293,8 +305,10 @@ public sealed class ForgeScreen : IScreen
         }
 
         // A one-line note about where the ore in front of the cursor comes from, so the whole system is
-        // discoverable from this screen alone rather than by dying in the right dungeon.
-        fonts.DrawText(r.Handle, SetHint(SelectedSet, player), 20, y + 10, 11, Colors.Border);
+        // discoverable from this screen alone rather than by dying in the right dungeon. A size smaller than
+        // the list: at 11 the longest of these ran off the right of the sheet and was cut in half by the
+        // status panel.
+        fonts.DrawText(r.Handle, SetHint(SelectedSet, player), x, y + 9, 10, Colors.Border);
     }
 
     private static string StockLabel(Metal? set, Player player)
@@ -331,24 +345,28 @@ public sealed class ForgeScreen : IScreen
         var r = c.Renderer;
         var fonts = c.Fonts;
         var set = SelectedSet;
-
-        fonts.DrawText(r.Handle, $"{Forge.SetName(set)}の武器・防具", 20, 44, 12, Colors.Highlight);
-        fonts.DrawText(r.Handle, CostSummary(set), 20, 60, 11, Colors.Border);
-
         var recipes = Recipes(set);
-        var y = 80f;
+
+        var height = 40f + recipes.Length * 18f + ShopRoom.FooterHeight;
+        var top = ShopRoom.Draw(c, height);
+        var x = ShopRoom.ContentX;
+
+        fonts.DrawText(r.Handle, $"{Forge.SetName(set)}の武器・防具", x, top, 12, Colors.Highlight);
+        fonts.DrawText(r.Handle, CostSummary(set), x, top + 18, 11, Colors.Border);
+
+        var y = top + 40f;
         for (var i = 0; i < recipes.Length; i++)
         {
             var recipe = recipes[i];
             var selected = i == _pieceCursor;
-            MenuNav.DrawRow(c, 40, y, PieceRowWidth, 18, "", 11, selected);
+            MenuNav.DrawRow(c, x + 22, y, PieceRowWidth, 18, "", 11, selected);
 
             var text = selected ? Colors.Black : Colors.White;
             var dim = selected ? Colors.Black : Colors.Border;
 
             // The icon sits left of the row, and a tick marks what has already been made — the collector
             // titles are counted on exactly this, so it has to be readable at a glance.
-            r.DrawTexture(c.Sprites.ItemIcon(recipe.Create()), 20, y + 1, 15, 15);
+            r.DrawTexture(c.Sprites.ItemIcon(recipe.Create()), x, y + 1, 15, 15);
             fonts.DrawText(r.Handle, recipe.Name, PieceNameX, y + 3, 11, text);
             fonts.DrawText(r.Handle, recipe.Rank.Label(), PieceRankX, y + 4, 10, dim);
             fonts.DrawText(r.Handle, StatLabel(recipe), PieceStatX, y + 3, 11, dim);
@@ -359,11 +377,11 @@ public sealed class ForgeScreen : IScreen
         }
     }
 
-    private const float PieceNameX = 44f;
-    private const float PieceRankX = 190f;
-    private const float PieceStatX = 216f;
-    private const float PieceDoneX = 300f;
-    private const float PieceRowWidth = 336f;
+    private static float PieceNameX => ShopRoom.ContentX + 26f;
+    private static float PieceRankX => ShopRoom.ContentX + 172f;
+    private static float PieceStatX => ShopRoom.ContentX + 198f;
+    private static float PieceDoneX => ShopRoom.ContentX + 282f;
+    private static float PieceRowWidth => ShopRoom.ContentWidth - 22f;
 
     /// <summary>
     /// Deliberately drops the "(所持 …G)" it used to carry. With three ores named in full, the slime set's

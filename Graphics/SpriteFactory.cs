@@ -20,6 +20,15 @@ public sealed class SpriteFactory : IDisposable
     /// <summary>The graveyard shown when a character dies. Optional, like the guild room.</summary>
     public const string RipArtFile = "rip.png";
 
+    /// <summary>
+    /// The three shops the player can walk into. Square illustrations like the guild's, drawn in the same
+    /// 400x400 slot to the left of the status panel, and equally optional — without them the screens fall
+    /// back to the plain panelled room they used before.
+    /// </summary>
+    public const string ShopArtFile = "shop.png";
+    public const string SmithArtFile = "smith.png";
+    public const string PharmacyArtFile = "pharmacy.png";
+
     public const int MenuBackdropWidth = 640;
     public const int MenuBackdropHeight = 400;
 
@@ -45,6 +54,11 @@ public sealed class SpriteFactory : IDisposable
 
     /// <summary>The graveyard behind the death screen, or zero if no artwork was supplied.</summary>
     public IntPtr RipBackdrop { get; private set; }
+
+    /// <summary>The shop interiors, or zero where the file is missing.</summary>
+    public IntPtr ShopBackdrop { get; private set; }
+    public IntPtr SmithBackdrop { get; private set; }
+    public IntPtr PharmacyBackdrop { get; private set; }
 
     /// <summary>Small markers for the two kinds of guild work, so the quest board can be scanned by shape.</summary>
     public IntPtr QuestGatherIcon { get; private set; }
@@ -130,6 +144,10 @@ public sealed class SpriteFactory : IDisposable
         if (RipBackdrop != IntPtr.Zero)
             _allTextures.Add(RipBackdrop);
 
+        ShopBackdrop = LoadOptional(renderer, ShopArtFile);
+        SmithBackdrop = LoadOptional(renderer, SmithArtFile);
+        PharmacyBackdrop = LoadOptional(renderer, PharmacyArtFile);
+
         MenuBackdrop = Bake(renderer, BuildMenuBackdrop());
         TitleLogo = Bake(renderer, TitleArt.BuildLogo());
         TitleBackdrop = Bake(renderer, TitleArt.BuildBackdrop());
@@ -159,6 +177,15 @@ public sealed class SpriteFactory : IDisposable
             foreach (var dir in Enum.GetValues<Direction>())
                 foreach (var frame in Enum.GetValues<WalkFrame>())
                     _player[(gender, dir, frame)] = Bake(renderer, BuildPlayer(gender, dir, frame));
+    }
+
+    /// <summary>Loads a picture that the game can do without, registering it for disposal if it arrived.</summary>
+    private IntPtr LoadOptional(IntPtr renderer, string fileName)
+    {
+        var texture = ArtLoader.TryLoad(renderer, fileName);
+        if (texture != IntPtr.Zero)
+            _allTextures.Add(texture);
+        return texture;
     }
 
     /// <summary>Shifts a base color toward an element's theme (Fire=red, Water=blue, Wind=yellow-green, Earth=brown), so a
