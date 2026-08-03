@@ -256,11 +256,21 @@ public sealed class InventoryOverlay
                 _message = $"{item.Name}を使った";
                 break;
             case ItemCategory.Scroll:
-                if (player.KnownSpells.Any(s => s.Id == item.SpellTaught))
+            {
+                // A scroll for a spell already known is an upgrade, not a duplicate. Refusing it outright meant
+                // a ストーン(H) learned early blocked every stronger ストーン the character would ever find,
+                // which is the opposite of how the ranks are supposed to work. It overwrites in place and costs
+                // no extra slot, since it is the same spell it was.
+                var known = player.KnownSpells.FirstOrDefault(s => s.Id == item.SpellTaught);
+                var name = SpellDefinitions.NameOf(item.SpellTaught);
+
+                if (known is not null && item.Rank <= known.Rank)
                 {
-                    _message = "すでに覚えているまほうだ";
+                    _message = item.Rank == known.Rank
+                        ? "すでに覚えているまほうだ"
+                        : $"覚えている{name}のほうが上位だ";
                 }
-                else if (player.KnownSpells.Count >= Player.MaxKnownSpells)
+                else if (known is null && player.KnownSpells.Count >= Player.MaxKnownSpells)
                 {
                     _pendingScroll = item;
                     _phase = Phase.ForgetSpellSelect;
@@ -268,11 +278,15 @@ public sealed class InventoryOverlay
                 }
                 else
                 {
+                    var upgraded = known is not null;
                     player.LearnSpell(item.SpellTaught, item.Rank);
                     player.ConsumeOne(item);
-                    _message = $"{SpellDefinitions.NameOf(item.SpellTaught)}を覚えた";
+                    _message = upgraded
+                        ? $"{name}が{known!.Rank.Label()}から{item.Rank.Label()}になった"
+                        : $"{name}を覚えた";
                 }
                 break;
+            }
         }
     }
 

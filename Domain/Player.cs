@@ -103,10 +103,18 @@ public sealed class Player
     [JsonIgnore]
     public bool IsAlive => !Stats.IsDead;
 
+    /// <summary>
+    /// Learns a spell, or re-learns one already known at a different rank. A spell the character already has
+    /// is replaced where it sits rather than removed and appended — learning a stronger ストーン should not
+    /// shuffle the combat menu underneath the player's fingers.
+    /// </summary>
     public void LearnSpell(SpellId id, Rank rank)
     {
-        KnownSpells.RemoveAll(s => s.Id == id);
-        KnownSpells.Add(new LearnedSpell(id, rank));
+        var at = KnownSpells.FindIndex(s => s.Id == id);
+        if (at >= 0)
+            KnownSpells[at] = new LearnedSpell(id, rank);
+        else
+            KnownSpells.Add(new LearnedSpell(id, rank));
     }
 
     public void ForgetSpell(SpellId id) => KnownSpells.RemoveAll(s => s.Id == id);
