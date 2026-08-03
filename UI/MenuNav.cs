@@ -46,6 +46,8 @@ public static class MenuNav
 
     public static bool MenuRequested(InputManager input) => input.WasPressed(GameAction.Menu);
 
+    public static bool TravelRequested(InputManager input) => input.WasPressed(GameAction.Travel);
+
     // On-screen hints live in ControlHints, which draws each control as a small icon. There is deliberately no
     // string form of a control's name here any more: hints went from naming the key ("[X]") to naming the
     // action ("[決定]") to showing the control itself, and leaving a text version lying around would only

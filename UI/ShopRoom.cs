@@ -66,9 +66,10 @@ public static class ShopRoom
     public static void DrawPrompt(GameContext ctx, string text)
     {
         var hint = ControlHints.Menu(text);
-        var width = ControlHints.Width(ctx, 12, hint) + 20f;
+        var travel = TravelMenu.Hint;
+        var width = ControlHints.Width(ctx, 12, hint, travel) + 20f;
         ctx.Renderer.FillRect(SheetLeft, 366f, width, 22f, Colors.Rgb(0, 0, 0, 150));
-        ControlHints.Draw(ctx, SheetLeft + 10f, 370f, 12, Colors.Highlight, hint);
+        ControlHints.Draw(ctx, SheetLeft + 10f, 370f, 12, Colors.Highlight, hint, travel);
     }
 
     /// <summary>Where the sheet's top edge lands for a given amount of content, before it is drawn.</summary>

@@ -29,6 +29,8 @@ public sealed class ForgeScreen : IScreen
     /// <summary>False until the smith is asked for work, so walking in shows the forge rather than a menu.</summary>
     private bool _menuOpen;
 
+    private readonly TravelMenu _travel = new();
+
     private static readonly Metal?[] Sets = Forge.Sets.ToArray();
 
     private Metal? SelectedSet => Sets[_setCursor];
@@ -51,6 +53,9 @@ public sealed class ForgeScreen : IScreen
     {
         var input = ctx.Input;
         var player = ctx.Player!;
+
+        if (_travel.Update(ctx, Place.Smith))
+            return;
 
         if (!_menuOpen)
         {
@@ -193,6 +198,7 @@ public sealed class ForgeScreen : IScreen
         {
             ShopRoom.DrawPrompt(c, "何か用か？");
             StatusPanel.Draw(c, ShopRoom.Size, 0, 400);
+            _travel.Draw(c, Place.Smith);
             return;
         }
 
@@ -208,6 +214,7 @@ public sealed class ForgeScreen : IScreen
             ControlHints.Direction("選ぶ"), ControlHints.Confirm("決定"), ControlHints.Cancel("戻る"));
 
         StatusPanel.Draw(c, ShopRoom.Size, 0, 400);
+        _travel.Draw(c, Place.Smith);
     }
 
     // Columns are drawn at fixed offsets from the sheet's left edge rather than by padding the strings.

@@ -1,14 +1,26 @@
 using SlimeDungeon.Core;
 using SlimeDungeon.Domain;
 using SlimeDungeon.Dungeon;
-using SlimeDungeon.Graphics;
 using SlimeDungeon.UI;
 
 namespace SlimeDungeon.Guild;
 
+/// <summary>
+/// The mouth of the dungeon: a place on the map now rather than a menu hanging off the guild counter.
+///
+/// It behaves like the three shops. The picture is what you see on arrival, confirm opens the list of dungeons
+/// that will let you in, and the travel menu takes you back to town. Climbing the stairs out of a dungeon
+/// returns you here rather than to the guild, so a second trip is one press away and reporting to the guild is
+/// a decision rather than something that happens to you.
+/// </summary>
 public sealed class DungeonSelectScreen : IScreen
 {
     private int _cursor = -1;
+
+    /// <summary>False until asked for, so standing at the entrance shows the entrance.</summary>
+    private bool _menuOpen;
+
+    private readonly TravelMenu _travel = new();
 
     /// <summary>
     /// Every dungeon the guild will let you through: one rank above your own as the stretch, your own rank,
@@ -41,9 +53,19 @@ public sealed class DungeonSelectScreen : IScreen
         if (_cursor < 0)
             _cursor = DefaultCursor(player, ranks);
 
-        if (MenuNav.Cancelled(input))
+        if (_travel.Update(ctx, Place.Dungeon))
+            return;
+
+        if (!_menuOpen)
         {
-            ctx.Screens.ChangeTo(new GuildScreen());
+            if (MenuNav.MenuRequested(input) || MenuNav.Confirmed(input))
+                _menuOpen = true;
+            return;
+        }
+
+        if (MenuNav.Cancelled(input) || MenuNav.MenuRequested(input))
+        {
+            _menuOpen = false;
             return;
         }
 
@@ -55,38 +77,55 @@ public sealed class DungeonSelectScreen : IScreen
             var element = DungeonGenerator.RollDungeonElement();
             var map = DungeonGenerator.Generate(rank, element);
             player.Counters.DungeonVisits++;
-            ctx.Screens.ChangeTo(new DungeonScreen(map, new GuildScreen()));
+            // Back out to this same spot, not to the guild.
+            ctx.Screens.ChangeTo(new DungeonScreen(map, new DungeonSelectScreen()));
         }
     }
 
     public void Draw(GameContext ctx)
     {
         var r = ctx.Renderer;
-        r.Clear(Colors.Rgb(24, 20, 16));
-        r.DrawTexture(ctx.Sprites.MenuBackdrop, 0, 0, SpriteFactory.MenuBackdropWidth, SpriteFactory.MenuBackdropHeight);
         var fonts = ctx.Fonts;
         var player = ctx.Player!;
+
+        // The picture letters "ダンジョン入口" across its own crest, so the heading is only for the fallback.
+        if (!ShopRoom.DrawBackdrop(ctx, ctx.Sprites.DungeonEntranceBackdrop))
+            fonts.DrawText(r.Handle, "ダンジョン入口", 20, 16, 18, Colors.White);
+
+        if (!_menuOpen)
+        {
+            ShopRoom.DrawPrompt(ctx, "もぐりますか");
+            StatusPanel.Draw(ctx, ShopRoom.Size, 0, 400);
+            _travel.Draw(ctx, Place.Dungeon);
+            return;
+        }
+
         var ranks = AvailableRanks(player);
         var cursor = _cursor < 0 ? DefaultCursor(player, ranks) : _cursor;
 
-        fonts.DrawText(r.Handle, "挑戦するダンジョンを選ぶ", 20, 16, 16, Colors.White);
+        // The ladder runs to ten rows at SS, so the sheet is sized from the list and the note underneath it.
+        const float rowStep = 19f;
+        var top = ShopRoom.Draw(ctx, 24f + ranks.Count * rowStep + 22f + ShopRoom.FooterHeight);
+        var x = ShopRoom.ContentX;
 
-        // The whole ladder up to rank+1 can be ten rows at SS, so the rows are tight enough that the longest
-        // list still clears the notes at the foot of the screen.
+        fonts.DrawText(r.Handle, "挑戦するダンジョンを選ぶ", x, top, 12, Colors.Highlight);
+
         var labels = ranks.Select(rk => $"{rk.Label(),-2}ランク ダンジョン").ToArray();
-        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 14);
-        var y = 52f;
+        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 12);
+        var y = top + 24f;
         for (var i = 0; i < ranks.Count; i++)
         {
-            MenuNav.DrawRow(ctx, 20, y, maxWidth, 20, labels[i], 14, i == cursor);
-            y += 22;
+            MenuNav.DrawRow(ctx, x + 8, y, maxWidth + 12, 17, labels[i], 12, i == cursor);
+            y += rowStep;
         }
 
-        y += 8;
-        fonts.DrawText(r.Handle, "12x12の一画面ダンジョン。入るたびに自動生成される。", 20, y, 11, Colors.Border);
-        fonts.DrawText(r.Handle, "格下のダンジョンにもいつでも入れる（スライムも宝も相応に弱い）。", 20, y + 16, 11, Colors.Border);
-        ControlHints.Draw(ctx, 20, 370, 11, Colors.Border, ControlHints.Direction("選ぶ"), ControlHints.Confirm("もぐる"), ControlHints.Cancel("戻る"));
+        fonts.DrawText(r.Handle, "格下のダンジョンにもいつでも入れる（スライムも宝も相応に弱い）。",
+            x, y + 4, 10, Colors.Border);
 
-        StatusPanel.Draw(ctx, 400, 0, 400);
+        ShopRoom.DrawFooter(ctx, null,
+            ControlHints.Direction("選ぶ"), ControlHints.Confirm("もぐる"), ControlHints.Cancel("戻る"));
+
+        StatusPanel.Draw(ctx, ShopRoom.Size, 0, 400);
+        _travel.Draw(ctx, Place.Dungeon);
     }
 }

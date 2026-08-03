@@ -14,7 +14,7 @@ public sealed class DungeonScreen : IScreen
     public const float MapAreaWidth = DungeonMap.Size * TileSize + Border * 2;
 
     private readonly DungeonSession _session;
-    private readonly IScreen _guildScreen;
+    private readonly IScreen _exitScreen;
     private (int Dx, int Dy)? _pendingContinue;
     private readonly FieldMagicMenu _magic = new();
 
@@ -35,10 +35,10 @@ public sealed class DungeonScreen : IScreen
     private Chest? _chestSwap;
     private int _chestSwapCursor;
 
-    public DungeonScreen(DungeonMap map, IScreen guildScreen)
+    public DungeonScreen(DungeonMap map, IScreen exitScreen)
     {
         _session = new DungeonSession(map);
-        _guildScreen = guildScreen;
+        _exitScreen = exitScreen;
     }
 
     /// <summary>
@@ -125,7 +125,11 @@ public sealed class DungeonScreen : IScreen
         if (MenuNav.Confirmed(input) && _session.IsOnStairs)
         {
             player.DayCount++;
-            ctx.Screens.ChangeTo(_guildScreen);
+            // Written out here rather than left to the destination. The guild used to save on arrival and the
+            // stairs always led to the guild; they lead back to the dungeon entrance now, so without this a
+            // whole trip's loot and levels would be lost by quitting from anywhere but the counter.
+            Data.SaveManager.Save(player);
+            ctx.Screens.ChangeTo(_exitScreen);
             return;
         }
 

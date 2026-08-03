@@ -7,7 +7,7 @@ namespace SlimeDungeon.Core;
 /// The three things the game asks of the player, whatever they are holding. Screens work in terms of these
 /// rather than in keycodes, so the physical bindings live in exactly one place.
 /// </summary>
-public enum GameAction { Confirm, Cancel, Menu }
+public enum GameAction { Confirm, Cancel, Menu, Travel }
 
 /// <summary>Tracks keyboard and gamepad state with edge-detection (pressed-this-frame vs held).</summary>
 public sealed class InputManager
@@ -275,6 +275,9 @@ public sealed class InputManager
         GameAction.Cancel => WasPressed(SDL.Keycode.Z) || WasPressed(SDL.Keycode.Escape)
                              || WasPressed(SDL.GamepadButton.East),
         GameAction.Menu => WasPressed(SDL.Keycode.S) || WasPressed(SDL.GamepadButton.West),
+        // North is the pad's Y. Sits alongside Menu (West/X) rather than anywhere near Confirm or Cancel,
+        // because leaving a room by accident is a worse mistake than opening a menu by accident.
+        GameAction.Travel => WasPressed(SDL.Keycode.A) || WasPressed(SDL.GamepadButton.North),
         _ => false,
     };
 

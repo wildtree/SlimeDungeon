@@ -22,6 +22,7 @@ public sealed class GuildScreen : IScreen
 
     private bool _menuOpen;
     private readonly FieldMagicMenu _magic = new();
+    private readonly TravelMenu _travel = new();
 
     public void OnEnter(GameContext ctx)
     {
@@ -55,19 +56,20 @@ public sealed class GuildScreen : IScreen
     private static int HealCost(Player player) => player.Level * 10;
 
     /// <summary>
-    /// What the counter offers. The last three are the same entries the dungeon menu carries, so the things
-    /// you reach for most — your pack, your record, a heal — are in the same place wherever you are.
+    /// What the counter offers. The shop, the smith, the alchemist and the dungeon used to be on this list;
+    /// they are places rather than errands, so they moved to the travel menu and left the counter with only
+    /// guild business on it. The last three are the same entries the dungeon menu carries, so the things you
+    /// reach for most — your pack, your record, a heal — are in the same place wherever you are.
     /// </summary>
     private enum Entry
     {
-        Quest, Bounty, Shop, Potion, Forge, Dungeon, Heal, Titles, Records,
+        Quest, Bounty, Heal, Titles, Records,
         Inventory, KillLog, Magic,
     }
 
     private static Entry[] Entries =>
     [
-        Entry.Quest, Entry.Bounty, Entry.Shop, Entry.Potion, Entry.Forge, Entry.Dungeon,
-        Entry.Heal, Entry.Titles, Entry.Records,
+        Entry.Quest, Entry.Bounty, Entry.Heal, Entry.Titles, Entry.Records,
         Entry.Inventory, Entry.KillLog, Entry.Magic,
     ];
 
@@ -77,14 +79,6 @@ public sealed class GuildScreen : IScreen
         // The pending total is on the label itself: gold from slimes is only collected here now, so leaving it
         // unclaimed has to be visible from the hub rather than something you have to go and look for.
         Entry.Bounty => player.PendingBountyTotal > 0 ? $"討伐報酬 ({player.PendingBountyTotal}G)" : "討伐報酬",
-        Entry.Shop => "ショップ",
-        Entry.Potion => "ポーション調合",
-        // Ore carried and ore already left with the smith, so the label says at a glance whether there is
-        // anything to go in for.
-        Entry.Forge => Metals.All.Sum(m => player.AvailableMaterial(m.Metal)) is var ore && ore > 0
-            ? $"鍛冶 (素材{ore}個)"
-            : "鍛冶",
-        Entry.Dungeon => "ダンジョンへ",
         Entry.Heal => $"回復 ({HealCost(player)}G)",
         Entry.Titles => "称号",
         Entry.Records => "冒険者の記録",
@@ -136,6 +130,10 @@ public sealed class GuildScreen : IScreen
             return;
         }
 
+        // Leaving for somewhere else is available from anywhere on this screen, open counter or not.
+        if (_travel.Update(ctx, Place.Guild))
+            return;
+
         // The counter is clear until asked for. The room is the thing worth looking at; the list of errands
         // sat on top of it permanently for no reason other than that it always had.
         if (!_menuOpen)
@@ -164,10 +162,6 @@ public sealed class GuildScreen : IScreen
         {
             case Entry.Quest: ctx.Screens.ChangeTo(new QuestBoardScreen()); break;
             case Entry.Bounty: ctx.Screens.ChangeTo(new BountyScreen()); break;
-            case Entry.Shop: ctx.Screens.ChangeTo(new ShopScreen()); break;
-            case Entry.Potion: ctx.Screens.ChangeTo(new PotionCraftScreen()); break;
-            case Entry.Forge: ctx.Screens.ChangeTo(new ForgeScreen()); break;
-            case Entry.Dungeon: ctx.Screens.ChangeTo(new DungeonSelectScreen()); break;
             case Entry.Heal: HandleHeal(player); break;
             case Entry.Titles: ctx.Screens.ChangeTo(new TitleSelectScreen()); break;
             case Entry.Records: ctx.Screens.ChangeTo(new RecordsScreen()); break;
@@ -213,15 +207,17 @@ public sealed class GuildScreen : IScreen
 
         if (!_menuOpen)
         {
-            // Nothing over the room but the prompt to open the counter.
+            // Nothing over the room but the prompt to open the counter, and the way out to everywhere else.
             var prompt = ControlHints.Menu("ご用件をどうぞ");
-            r.FillRect(10, 366, ControlHints.Width(ctx, 12, prompt) + 20, 22, Colors.Rgb(0, 0, 0, 150));
-            ControlHints.Draw(ctx, 20, 370, 12, Colors.Highlight, prompt);
+            var travel = TravelMenu.Hint;
+            r.FillRect(10, 366, ControlHints.Width(ctx, 12, prompt, travel) + 20, 22, Colors.Rgb(0, 0, 0, 150));
+            ControlHints.Draw(ctx, 20, 370, 12, Colors.Highlight, prompt, travel);
 
             if (_message is not null)
                 DrawReceptionistSay(ctx, _message, 14f, 356f);
 
             StatusPanel.Draw(ctx, 400, 0, 400);
+            _travel.Draw(ctx, Place.Guild);
             // Same order the input handler acknowledges them in: the bad news is on top.
             if (_questFailure is { } failed)
                 QuestFailedPopup.Draw(ctx, failed);
@@ -274,6 +270,8 @@ public sealed class GuildScreen : IScreen
 
         if (_magic.IsOpen)
             _magic.Draw(ctx, 210, 150);
+
+        _travel.Draw(ctx, Place.Guild);
 
         if (_questFailure is { } expired)
             QuestFailedPopup.Draw(ctx, expired);

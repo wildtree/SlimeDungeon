@@ -26,6 +26,8 @@ public sealed class ShopScreen : IScreen
     /// <summary>False until the player asks for the counter, so walking in shows the shop rather than a list.</summary>
     private bool _menuOpen;
 
+    private readonly TravelMenu _travel = new();
+
     /// <summary>Shop equipment tops out at Rank B — anything above that (and every carry-capacity bag)
     /// only drops in dungeons, so there's always a reason to go adventuring instead of just shopping.</summary>
     private static readonly Rank[] ShopEquipmentRanks = { Rank.H, Rank.G, Rank.F, Rank.E, Rank.D, Rank.C, Rank.B };
@@ -102,6 +104,9 @@ public sealed class ShopScreen : IScreen
     {
         var input = ctx.Input;
         var player = ctx.Player!;
+
+        if (_travel.Update(ctx, Place.Shop))
+            return;
 
         // Until the counter is asked for there is nothing on screen but the shop itself.
         if (!_menuOpen)
@@ -217,6 +222,7 @@ public sealed class ShopScreen : IScreen
             DrawList(ctx, StockRows(ctx, StockOf(_open.Value)));
 
         StatusPanel.Draw(ctx, ShopRoom.Size, 0, 400);
+        _travel.Draw(ctx, Place.Shop);
     }
 
     /// <summary>

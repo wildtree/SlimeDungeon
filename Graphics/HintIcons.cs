@@ -4,7 +4,7 @@ using SlimeDungeon.Core;
 namespace SlimeDungeon.Graphics;
 
 /// <summary>The controls a hint line can name.</summary>
-public enum HintIcon { Direction, Confirm, Cancel, Menu }
+public enum HintIcon { Direction, Confirm, Cancel, Menu, Travel }
 
 /// <summary>
 /// The little glyphs the control hints are drawn with.
@@ -31,6 +31,7 @@ public static class HintIcons
         HintIcon.Direction => BuildDirection(),
         HintIcon.Confirm => BuildConfirm(),
         HintIcon.Cancel => BuildCancel(),
+        HintIcon.Travel => BuildTravel(),
         _ => BuildMenu(),
     };
 
@@ -84,6 +85,38 @@ public static class HintIcons
     {
         var c = new PixelCanvas(Size, Size);
         c.FillRect(2, 7, 12, 2, On);
+        return c;
+    }
+
+    /// <summary>
+    /// A map pin: a ring on a tapering point. Chosen over an arrow because the direction cross already owns
+    /// arrowheads in this set, and over footprints because two small marks turn to mush at this size. The hole
+    /// in the middle is what stops it reading as a blob — it is the only glyph here that is not a solid shape,
+    /// which also makes it the easiest of the five to pick out of a hint line.
+    /// </summary>
+    private static PixelCanvas BuildTravel()
+    {
+        var c = new PixelCanvas(Size, Size);
+
+        // The head, drawn as a stack of rows so the ring is round rather than square.
+        c.FillRect(5, 1, 6, 1, On);
+        c.FillRect(4, 2, 8, 1, On);
+        c.FillRect(3, 3, 10, 1, On);
+        for (var y = 4; y <= 6; y++)
+        {
+            c.FillRect(3, y, 3, 1, On);
+            c.FillRect(10, y, 3, 1, On);
+        }
+        c.FillRect(3, 7, 10, 1, On);
+        c.FillRect(4, 8, 8, 1, On);
+
+        // The point, narrowing to a single pixel at the bottom.
+        c.FillRect(5, 9, 6, 1, On);
+        c.FillRect(6, 10, 4, 1, On);
+        c.FillRect(6, 11, 4, 1, On);
+        c.FillRect(7, 12, 2, 1, On);
+        c.FillRect(7, 13, 2, 1, On);
+
         return c;
     }
 

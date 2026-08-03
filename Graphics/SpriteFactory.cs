@@ -29,6 +29,9 @@ public sealed class SpriteFactory : IDisposable
     public const string SmithArtFile = "smith.png";
     public const string PharmacyArtFile = "pharmacy.png";
 
+    /// <summary>The mouth of the dungeon: the fifth place on the travel menu, and the only one outdoors.</summary>
+    public const string DungeonArtFile = "dungeon.png";
+
     public const int MenuBackdropWidth = 640;
     public const int MenuBackdropHeight = 400;
 
@@ -59,6 +62,7 @@ public sealed class SpriteFactory : IDisposable
     public IntPtr ShopBackdrop { get; private set; }
     public IntPtr SmithBackdrop { get; private set; }
     public IntPtr PharmacyBackdrop { get; private set; }
+    public IntPtr DungeonEntranceBackdrop { get; private set; }
 
     /// <summary>Small markers for the two kinds of guild work, so the quest board can be scanned by shape.</summary>
     public IntPtr QuestGatherIcon { get; private set; }
@@ -147,6 +151,7 @@ public sealed class SpriteFactory : IDisposable
         ShopBackdrop = LoadOptional(renderer, ShopArtFile);
         SmithBackdrop = LoadOptional(renderer, SmithArtFile);
         PharmacyBackdrop = LoadOptional(renderer, PharmacyArtFile);
+        DungeonEntranceBackdrop = LoadOptional(renderer, DungeonArtFile);
 
         MenuBackdrop = Bake(renderer, BuildMenuBackdrop());
         TitleLogo = Bake(renderer, TitleArt.BuildLogo());

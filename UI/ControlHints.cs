@@ -31,6 +31,7 @@ public static class ControlHints
     public static ControlHint Confirm(string label) => new(HintIcon.Confirm, label);
     public static ControlHint Cancel(string label) => new(HintIcon.Cancel, label);
     public static ControlHint Menu(string label) => new(HintIcon.Menu, label);
+    public static ControlHint Travel(string label) => new(HintIcon.Travel, label);
 
     /// <summary>Total width of the line, for right-aligning or centring it.</summary>
     public static float Width(GameContext ctx, float size, params ControlHint[] hints)

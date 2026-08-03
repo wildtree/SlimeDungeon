@@ -18,6 +18,8 @@ public sealed class PotionCraftScreen : IScreen
     /// <summary>False until the player asks, so walking in shows the shop rather than a list of herbs.</summary>
     private bool _menuOpen;
 
+    private readonly TravelMenu _travel = new();
+
     /// <summary>Herbs anywhere on the player, bag or readied item slot alike — a herb in an item slot is still
     /// stock the alchemist can work with, and hiding it would look like it had gone missing.</summary>
     private static List<Item> Herbs(Player player) =>
@@ -27,6 +29,9 @@ public sealed class PotionCraftScreen : IScreen
     {
         var input = ctx.Input;
         var player = ctx.Player!;
+
+        if (_travel.Update(ctx, Place.Pharmacy))
+            return;
 
         if (!_menuOpen)
         {
@@ -137,6 +142,7 @@ public sealed class PotionCraftScreen : IScreen
             DrawKindChoice(ctx);
 
         StatusPanel.Draw(ctx, ShopRoom.Size, 0, 400);
+        _travel.Draw(ctx, Place.Pharmacy);
     }
 
     /// <summary>
