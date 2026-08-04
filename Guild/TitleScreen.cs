@@ -20,6 +20,17 @@ public sealed class TitleScreen : IScreen
     private const float PaintedSlimeUnit = 30f;
     private const float PaintedMenuY = 330f;
 
+    /// <summary>
+    /// The two witchlight torches in the painting, measured off the artwork itself rather than guessed: the
+    /// centre of each flame, and a radius a little wider than the flame so the halo spills past it. The phases
+    /// are unrelated numbers on purpose — the pair must not flicker in step.
+    /// </summary>
+    private static readonly (float X, float Y, float Radius, float Phase)[] PaintedTorches =
+    [
+        (120f, 175f, 18f, 0f),
+        (518f, 170f, 18f, 2.4f),
+    ];
+
     private const float DrawnFloorY = TitleArt.FloorY - 18f;
 
     /// <summary>Chosen so the middle slime comes out the 42px it was before these three moved to a shared
@@ -92,9 +103,13 @@ public sealed class TitleScreen : IScreen
 
         if (painted)
         {
-            // The painting carries its own wordmark, its own lanterns and its own arch, so none of the drawn
-            // furniture goes on top of it — only the slimes, which are the one thing on this screen that moves.
+            // The painting carries its own wordmark and its own arch, so none of the drawn furniture goes on
+            // top of it. Its torches are painted too — those get light laid over them rather than replaced.
             r.DrawTexture(art, 0, 0, TitleArt.BackdropWidth, TitleArt.BackdropHeight);
+
+            foreach (var (tx, ty, radius, phase) in PaintedTorches)
+                FlameGlow.Draw(r, ctx.Sprites.GlowSprite, tx, ty, radius, _time, phase);
+
             DoorwaySlimes.Draw(ctx, PaintedArchX, PaintedFloorY, PaintedSlimeUnit, _time);
         }
         else

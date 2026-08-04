@@ -73,6 +73,9 @@ public sealed class SpriteFactory : IDisposable
     /// <summary>The painted title screen, or zero — in which case the procedural one is used instead.</summary>
     public IntPtr TitleArtwork { get; private set; }
 
+    /// <summary>A soft radial light, for <see cref="FlameGlow"/> to lay over the painted torches.</summary>
+    public IntPtr GlowSprite { get; private set; }
+
     /// <summary>Small markers for the two kinds of guild work, so the quest board can be scanned by shape.</summary>
     public IntPtr QuestGatherIcon { get; private set; }
     public IntPtr QuestSlayIcon { get; private set; }
@@ -162,6 +165,11 @@ public sealed class SpriteFactory : IDisposable
         PharmacyBackdrop = LoadOptional(renderer, PharmacyArtFile);
         DungeonEntranceBackdrop = LoadOptional(renderer, DungeonArtFile);
         TitleArtwork = LoadOptional(renderer, TitleArtFile);
+
+        // Linear, unlike every other baked sprite: this one is blown up to several times its authored size,
+        // and nearest-neighbour would turn a smooth falloff into visible rings.
+        GlowSprite = Bake(renderer, FlameGlow.BuildGlow());
+        SDL.SetTextureScaleMode(GlowSprite, SDL.ScaleMode.Linear);
 
         MenuBackdrop = Bake(renderer, BuildMenuBackdrop());
         TitleLogo = Bake(renderer, TitleArt.BuildLogo());
