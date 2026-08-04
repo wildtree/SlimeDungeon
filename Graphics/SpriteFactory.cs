@@ -32,6 +32,12 @@ public sealed class SpriteFactory : IDisposable
     /// <summary>The mouth of the dungeon: the fifth place on the travel menu, and the only one outdoors.</summary>
     public const string DungeonArtFile = "dungeon.png";
 
+    /// <summary>
+    /// The title screen, wordmark and all. Unlike the room pictures this one is the full 640x400 frame rather
+    /// than a square, because the title screen has no status panel beside it.
+    /// </summary>
+    public const string TitleArtFile = "title.png";
+
     public const int MenuBackdropWidth = 640;
     public const int MenuBackdropHeight = 400;
 
@@ -63,6 +69,9 @@ public sealed class SpriteFactory : IDisposable
     public IntPtr SmithBackdrop { get; private set; }
     public IntPtr PharmacyBackdrop { get; private set; }
     public IntPtr DungeonEntranceBackdrop { get; private set; }
+
+    /// <summary>The painted title screen, or zero — in which case the procedural one is used instead.</summary>
+    public IntPtr TitleArtwork { get; private set; }
 
     /// <summary>Small markers for the two kinds of guild work, so the quest board can be scanned by shape.</summary>
     public IntPtr QuestGatherIcon { get; private set; }
@@ -152,6 +161,7 @@ public sealed class SpriteFactory : IDisposable
         SmithBackdrop = LoadOptional(renderer, SmithArtFile);
         PharmacyBackdrop = LoadOptional(renderer, PharmacyArtFile);
         DungeonEntranceBackdrop = LoadOptional(renderer, DungeonArtFile);
+        TitleArtwork = LoadOptional(renderer, TitleArtFile);
 
         MenuBackdrop = Bake(renderer, BuildMenuBackdrop());
         TitleLogo = Bake(renderer, TitleArt.BuildLogo());

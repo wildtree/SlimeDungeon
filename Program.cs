@@ -114,6 +114,9 @@ static (MusicId? Track, float Delay, bool Loop) MusicForScreen(IScreen screen) =
     // until the battle music takes over.
     SlimeDungeon.Combat.CombatScreen => (MusicId.Battle, 2.9f, true),
     SlimeDungeon.Dungeon.DungeonScreen => (MusicId.Dungeon, 0f, true),
+    // The entrance belongs to the dungeon, not to the town: the guild's cheerful afternoon theme over a
+    // ruined arch full of bones was the one place in the game where the music argued with the picture.
+    DungeonSelectScreen => (MusicId.Dungeon, 0f, true),
     // The grave gets a lament, and only the one time through. No delay: the battle theme is still running
     // when the player dismisses the last of the fight, and holding the change would leave it playing over
     // the headstone. It is not looped either — a piece that keeps starting again is one the player stops

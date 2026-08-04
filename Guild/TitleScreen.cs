@@ -12,13 +12,20 @@ public sealed class TitleScreen : IScreen
 {
     private float _time;
 
-    /// <summary>Slimes loitering in the doorway: x offset from the arch centre, size, and animation phase.</summary>
-    private static readonly (int OffsetX, int Size, float Phase, SlimeColor Color)[] DoorwaySlimes =
-    [
-        (-44, 30, 0.0f, SlimeColor.Blue),
-        (2, 42, 1.9f, SlimeColor.Green),
-        (44, 26, 3.4f, SlimeColor.Red),
-    ];
+    // Where the slimes stand, and where the menu goes, on each of the two title screens. The painted one has
+    // its arch a little left of centre and a carved plaque waiting for the menu; the procedural one is
+    // symmetrical and has no plaque, so the two sets of numbers are simply different pictures' furniture.
+    private const float PaintedArchX = 322f;
+    private const float PaintedFloorY = 306f;
+    private const float PaintedSlimeUnit = 30f;
+    private const float PaintedMenuY = 330f;
+
+    private const float DrawnFloorY = TitleArt.FloorY - 18f;
+
+    /// <summary>Chosen so the middle slime comes out the 42px it was before these three moved to a shared
+    /// helper — the drawn arch is smaller than the painted one and was tuned against it.</summary>
+    private const float DrawnSlimeUnit = 32f;
+    private const float DrawnMenuY = 340f;
 
     /// <summary>
     /// Whether the controller readout is showing. Lives on the title screen because that is the one place
@@ -79,19 +86,32 @@ public sealed class TitleScreen : IScreen
     {
         var r = ctx.Renderer;
         r.Clear(Colors.Rgb(8, 8, 12));
-        r.DrawTexture(ctx.Sprites.TitleBackdrop, 0, 0, TitleArt.BackdropWidth, TitleArt.BackdropHeight);
 
-        DrawSlimesInDoorway(ctx);
+        var art = ctx.Sprites.TitleArtwork;
+        var painted = art != IntPtr.Zero;
 
-        foreach (var (tx, ty) in TitleArt.TorchPositions)
-            TorchFlame.Draw(r, tx, ty - 8, _time);
+        if (painted)
+        {
+            // The painting carries its own wordmark, its own lanterns and its own arch, so none of the drawn
+            // furniture goes on top of it — only the slimes, which are the one thing on this screen that moves.
+            r.DrawTexture(art, 0, 0, TitleArt.BackdropWidth, TitleArt.BackdropHeight);
+            DoorwaySlimes.Draw(ctx, PaintedArchX, PaintedFloorY, PaintedSlimeUnit, _time);
+        }
+        else
+        {
+            r.DrawTexture(ctx.Sprites.TitleBackdrop, 0, 0, TitleArt.BackdropWidth, TitleArt.BackdropHeight);
+            DoorwaySlimes.Draw(ctx, TitleArt.ArchCenterX, DrawnFloorY, DrawnSlimeUnit, _time);
 
-        // The wordmark drifts a couple of pixels, just enough to keep the screen from feeling frozen.
-        var logoY = 8 + (float)Math.Sin(_time * 1.1) * 3f;
-        r.DrawTexture(ctx.Sprites.TitleLogo, (TitleArt.BackdropWidth - TitleArt.LogoWidth) / 2f, logoY,
-            TitleArt.LogoWidth, TitleArt.LogoHeight);
+            foreach (var (tx, ty) in TitleArt.TorchPositions)
+                TorchFlame.Draw(r, tx, ty - 8, _time);
 
-        DrawPrompt(ctx);
+            // The wordmark drifts a couple of pixels, just enough to keep the screen from feeling frozen.
+            var logoY = 8 + (float)Math.Sin(_time * 1.1) * 3f;
+            r.DrawTexture(ctx.Sprites.TitleLogo, (TitleArt.BackdropWidth - TitleArt.LogoWidth) / 2f, logoY,
+                TitleArt.LogoWidth, TitleArt.LogoHeight);
+        }
+
+        DrawPrompt(ctx, painted ? PaintedMenuY : DrawnMenuY);
 
         if (_showPadInfo)
             DrawPadInfo(ctx);
@@ -130,22 +150,7 @@ public sealed class TitleScreen : IScreen
         ctx.Fonts.DrawText(r.Handle, "[F1]閉じる", x + 10, y + h - 14, 9, Colors.Rgb(120, 130, 145));
     }
 
-    private void DrawSlimesInDoorway(GameContext ctx)
-    {
-        var r = ctx.Renderer;
-        foreach (var (offsetX, size, phase, color) in DoorwaySlimes)
-        {
-            var (idle, hop) = ctx.Sprites.Slime(color);
-            var cycle = Math.Sin(_time * 2.2 + phase);
-            var texture = cycle > 0 ? hop : idle;
-            var lift = (float)Math.Abs(cycle) * 6f;
-            var x = TitleArt.ArchCenterX + offsetX - size / 2f;
-            var y = TitleArt.FloorY - 18 - size - lift;
-            r.DrawTexture(texture, x, y, size, size);
-        }
-    }
-
-    private void DrawPrompt(GameContext ctx)
+    private void DrawPrompt(GameContext ctx, float menuY)
     {
         var r = ctx.Renderer;
         // Quantised pulse on the selected row: the font cache is keyed by colour, so a handful of discrete
@@ -156,7 +161,7 @@ public sealed class TitleScreen : IScreen
         var selectedColor = Colors.Rgb(level, (byte)(level * 0.92), (byte)(level * 0.55));
 
         var options = Options();
-        var y = 340f;
+        var y = menuY;
         for (var i = 0; i < options.Length; i++)
         {
             var label = OptionLabel(options[i]);
@@ -164,7 +169,7 @@ public sealed class TitleScreen : IScreen
             var (w, _) = ctx.Fonts.Measure(label, selected ? 15 : 13);
             ctx.Fonts.DrawText(r.Handle, label, (TitleArt.BackdropWidth - w) / 2f, y,
                 selected ? 15 : 13, selected ? selectedColor : Colors.Rgb(122, 116, 104));
-            y += 20;
+            y += 19;
         }
 
         // F1 is named as a literal key on purpose: it is a keyboard-only diagnostic with no gamepad equivalent
