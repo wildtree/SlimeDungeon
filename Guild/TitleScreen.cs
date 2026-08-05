@@ -108,7 +108,7 @@ public sealed class TitleScreen : IScreen
             r.DrawTexture(art, 0, 0, TitleArt.BackdropWidth, TitleArt.BackdropHeight);
 
             foreach (var (tx, ty, radius, phase) in PaintedTorches)
-                FlameGlow.Draw(r, ctx.Sprites.GlowSprite, tx, ty, radius, _time, phase);
+                FlameGlow.Draw(r, ctx.Sprites.GlowSprite, tx, ty, radius, _time, phase, FlameGlow.Witchlight);
 
             DoorwaySlimes.Draw(ctx, PaintedArchX, PaintedFloorY, PaintedSlimeUnit, _time);
         }

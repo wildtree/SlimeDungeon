@@ -19,6 +19,13 @@ public sealed class QuestBoardScreen : IScreen
     private bool _actionMenuOpen;
     private int _actionCursor;
 
+    /// <summary>
+    /// The contract the player has pointed at and asked about, held while the terms are on screen. Accepting a
+    /// job locks out every other opening on the board until it is finished or cancelled — and cancelling costs
+    /// a penalty point — so it is not something a single keypress on the wrong row should be able to do.
+    /// </summary>
+    private Quest? _pendingAccept;
+
     private static string ActionLabel(QuestAction action, Quest active) => action switch
     {
         // A collection quest hands over goods; everything else is simply reported. The label follows whichever
@@ -75,6 +82,23 @@ public sealed class QuestBoardScreen : IScreen
             return;
         }
 
+        // The terms of a job answer before anything else, including the cancel that would leave the board.
+        if (_pendingAccept is { } offered)
+        {
+            if (MenuNav.Confirmed(input))
+            {
+                player.OpenQuests.Remove(offered);
+                player.ActiveQuest = offered;
+                _message = $"「{offered.Title}」を受注した";
+                _pendingAccept = null;
+            }
+            else if (MenuNav.Cancelled(input))
+            {
+                _pendingAccept = null;
+            }
+            return;
+        }
+
         if (MenuNav.Cancelled(input))
         {
             ctx.Screens.ChangeTo(new GuildScreen());
@@ -108,10 +132,8 @@ public sealed class QuestBoardScreen : IScreen
 
         if (MenuNav.Confirmed(input) && player.OpenQuests.Count > 0)
         {
-            var quest = player.OpenQuests[_cursor];
-            player.OpenQuests.RemoveAt(_cursor);
-            player.ActiveQuest = quest;
-            _message = $"「{quest.Title}」を受注した";
+            _pendingAccept = player.OpenQuests[_cursor];
+            _message = null;
         }
     }
 
@@ -225,11 +247,40 @@ public sealed class QuestBoardScreen : IScreen
         if (_actionMenuOpen && player.ActiveQuest is { } open)
             DrawActionMenu(ctx, open);
 
+        if (_pendingAccept is { } offered)
+            DrawAcceptPopup(ctx, player, offered);
+
         // Promotion is announced first and fully replaces the screen; the level-up summary follows.
         if (_rankUp is { } rankUp)
             RankUpPopup.Draw(ctx, rankUp);
         else if (_levelUp is { } levelUp)
             LevelUpPopup.Draw(ctx, levelUp);
+    }
+
+    /// <summary>
+    /// The terms, before signing. The board's table has to fit four openings side by side and abbreviates
+    /// everything to do it; this is the one place a single job is written out in full, which is exactly what
+    /// the moment of committing to it calls for.
+    /// </summary>
+    private static void DrawAcceptPopup(GameContext ctx, Player player, Quest quest)
+    {
+        var icon = quest.IsCollection ? ctx.Sprites.QuestGatherIcon : ctx.Sprites.QuestSlayIcon;
+
+        List<ConfirmPopup.Line> lines =
+        [
+            new("種別", quest.CategoryLabel),
+            new("ランク", quest.Rank.Label(), RankColor(quest.Rank, player.Rank)),
+            new("内容", quest.DetailLabel),
+            new("期日", DeadlineText(quest, player), DeadlineColor(quest, player)),
+            new("報酬", $"{quest.RewardGold}G ・ EXP {quest.RewardExp}", Colors.Gold),
+            // The one term that is nowhere on the board. Lit when the job counts toward promotion at all,
+            // which is the distinction that matters: a contract below your own rank earns nothing towards it,
+            // and that is worth knowing before signing rather than after finishing.
+            new("昇格ポイント", $"{quest.RankPointsFor(player.Rank)}pt",
+                quest.RankPointsFor(player.Rank) > 0 ? Colors.Gold : Colors.Rgb(150, 142, 128)),
+        ];
+
+        ConfirmPopup.Draw(ctx, quest.Title, icon, lines, "この依頼を受注しますか？");
     }
 
     /// <summary>

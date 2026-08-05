@@ -38,6 +38,9 @@ public sealed class SpriteFactory : IDisposable
     /// </summary>
     public const string TitleArtFile = "title.png";
 
+    /// <summary>The wall the fights happen in front of. Square, like the room pictures.</summary>
+    public const string BattleArtFile = "battle.png";
+
     public const int MenuBackdropWidth = 640;
     public const int MenuBackdropHeight = 400;
 
@@ -72,6 +75,9 @@ public sealed class SpriteFactory : IDisposable
 
     /// <summary>The painted title screen, or zero — in which case the procedural one is used instead.</summary>
     public IntPtr TitleArtwork { get; private set; }
+
+    /// <summary>The painted battle backdrop, or zero — the procedural per-element one is used instead.</summary>
+    public IntPtr BattleArtwork { get; private set; }
 
     /// <summary>A soft radial light, for <see cref="FlameGlow"/> to lay over the painted torches.</summary>
     public IntPtr GlowSprite { get; private set; }
@@ -165,6 +171,7 @@ public sealed class SpriteFactory : IDisposable
         PharmacyBackdrop = LoadOptional(renderer, PharmacyArtFile);
         DungeonEntranceBackdrop = LoadOptional(renderer, DungeonArtFile);
         TitleArtwork = LoadOptional(renderer, TitleArtFile);
+        BattleArtwork = LoadOptional(renderer, BattleArtFile);
 
         // Linear, unlike every other baked sprite: this one is blown up to several times its authored size,
         // and nearest-neighbour would turn a smooth falloff into visible rings.

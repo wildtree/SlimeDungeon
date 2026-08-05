@@ -48,9 +48,18 @@ public static class FlameGlow
         return c;
     }
 
-    /// <summary>Sampled from the artwork's own flames, so the light matches what it is sitting on.</summary>
-    private static readonly SDL3.SDL.Color Halo = Colors.Rgb(104, 232, 226);
-    private static readonly SDL3.SDL.Color Core = Colors.Rgb(206, 252, 246);
+    /// <summary>The two colours a flame's light is built from: the wide halo and the brighter core.</summary>
+    public readonly record struct Palette(SDL3.SDL.Color Halo, SDL3.SDL.Color Core);
+
+    /// <summary>
+    /// Sampled from the artwork's own flames, so the light always matches what it is sitting on. The title
+    /// screen's braziers burn cold blue-white; the battle backdrop's wall torches are ordinary fire.
+    /// </summary>
+    public static readonly Palette Witchlight =
+        new(Colors.Rgb(104, 232, 226), Colors.Rgb(206, 252, 246));
+
+    public static readonly Palette Firelight =
+        new(Colors.Rgb(255, 152, 48), Colors.Rgb(255, 226, 158));
 
     /// <summary>
     /// Three sine terms at frequencies with no common multiple, so the brightness never settles into a beat.
@@ -66,7 +75,8 @@ public static class FlameGlow
     /// Draws one flame's light, centred on the painted flame. <paramref name="phase"/> keeps the two torches
     /// off each other's rhythm — two lights flickering in unison look wired together.
     /// </summary>
-    public static void Draw(Renderer r, IntPtr glow, float cx, float cy, float radius, float time, float phase)
+    public static void Draw(Renderer r, IntPtr glow, float cx, float cy, float radius, float time, float phase,
+        Palette palette)
     {
         if (glow == IntPtr.Zero)
             return;
@@ -78,8 +88,8 @@ public static class FlameGlow
         var lift = radius * 0.14f * flicker;
         var lean = (float)Math.Sin(time * 3.7 + phase * 1.3) * radius * 0.06f;
 
-        Blob(Halo, radius * (0.70f + 0.58f * flicker), (byte)(26 + 128 * flicker), 1f);
-        Blob(Core, radius * (0.26f + 0.30f * flicker), (byte)(50 + 172 * flicker), 1.6f);
+        Blob(palette.Halo, radius * (0.70f + 0.58f * flicker), (byte)(26 + 128 * flicker), 1f);
+        Blob(palette.Core, radius * (0.26f + 0.30f * flicker), (byte)(50 + 172 * flicker), 1.6f);
 
         void Blob(SDL3.SDL.Color colour, float rad, byte alpha, float leanScale)
         {

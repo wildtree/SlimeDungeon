@@ -68,9 +68,6 @@ public sealed class DungeonScreen : IScreen
                 _session.Message = null;
         }
 
-        if (_session.FullMapRevealTimer > 0)
-            _session.FullMapRevealTimer = Math.Max(0, _session.FullMapRevealTimer - dt);
-
         // Both chest dialogs are modal: nothing moves, and no slime takes a step, until they are answered.
         if (_chestSwap is not null)
         {
@@ -85,9 +82,10 @@ public sealed class DungeonScreen : IScreen
             return;
         }
 
-        if (UpdateSlimes(ctx, dt))
-            return;
-
+        // Everything that puts something on screen to be answered stops the floor with it. The chest dialogs
+        // above always did; the field menu and the spell list did not, so slimes went on walking — and closing
+        // in — while the player was reading a list they had opened themselves. The item and record overlays
+        // never had the problem, because the main loop stops calling this screen entirely while one is up.
         if (_magic.IsOpen)
         {
             if (_magic.Update(ctx) is { } spellMessage)
@@ -100,6 +98,15 @@ public sealed class DungeonScreen : IScreen
             UpdateMenu(ctx);
             return;
         }
+
+        // Below the modals with the slimes, because a map scroll's few seconds of sight are part of the floor's
+        // clock too — reading the item list should not burn them. The message timer above is left where it is:
+        // that is a line of text fading, not something happening in the dungeon.
+        if (_session.FullMapRevealTimer > 0)
+            _session.FullMapRevealTimer = Math.Max(0, _session.FullMapRevealTimer - dt);
+
+        if (UpdateSlimes(ctx, dt))
+            return;
 
         // Reachable only out here: the chest dialog above and combat (a different screen entirely) both
         // return before this line, which is what keeps the menu shut while either is up.
@@ -177,6 +184,34 @@ public sealed class DungeonScreen : IScreen
 
     private const int SlimeChaseRadius = 4;
 
+    /// <summary>How far the tremble throws the sprite at its peak, in pixels of a 32px tile.</summary>
+    private const float ShiverAmplitude = 2.5f;
+
+    /// <summary>
+    /// Radians per second of the tremble — about 9Hz, which is the rate that reads as shivering rather than as
+    /// either a slow rock or an unreadable blur.
+    /// </summary>
+    private const float ShiverRate = 60f;
+
+    /// <summary>
+    /// How far left or right to draw a slime that is about to move. Read straight off its move timer rather
+    /// than kept as its own animation state: the countdown already says exactly how close the step is, and a
+    /// second clock would only be something else to keep in sync with it.
+    ///
+    /// A slime whose chosen step turns out to be blocked shivers and then stays put. That is left alone on
+    /// purpose — it looks like something bracing itself against a wall, which is closer to the truth than a
+    /// slime that gives no sign at all.
+    /// </summary>
+    private static float ShiverOffset(RoamingSlime slime)
+    {
+        var progress = slime.ShiverProgress;
+        if (progress <= 0)
+            return 0f;
+
+        var into = progress * RoamingSlime.ShiverSeconds;
+        return (float)Math.Sin(into * ShiverRate) * ShiverAmplitude * progress;
+    }
+
     /// <summary>
     /// Ticks every roaming slime's own movement timer: each wanders randomly on its own schedule until
     /// the player comes within sight and chase range, at which point it steps straight toward the player.
@@ -214,7 +249,7 @@ public sealed class DungeonScreen : IScreen
             if (slime.MoveTimer > 0)
                 continue;
 
-            slime.MoveTimer = (float)(rnd.NextDouble() * 1.6 + 2.0);
+            slime.MoveTimer = RoamingSlime.NextDelay(rnd);
 
             var (dx, dy) = ChooseSlimeMove(map, slime, playerTileX, playerTileY, rnd);
             if (dx == 0 && dy == 0)
@@ -583,7 +618,8 @@ public sealed class DungeonScreen : IScreen
                     if (slime is not null)
                     {
                         var (idle, hop) = sprites.SlimeSprite(slime.Slime);
-                        r.DrawTexture(slime.HopFrame ? hop : idle, px, py, TileSize, TileSize);
+                        r.DrawTexture(slime.HopFrame ? hop : idle, px + ShiverOffset(slime), py,
+                            TileSize, TileSize);
                     }
                 }
             }

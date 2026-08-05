@@ -28,6 +28,14 @@ public sealed class ShopScreen : IScreen
 
     private readonly TravelMenu _travel = new();
 
+    /// <summary>
+    /// The item the counter has been asked about, and whether the deal is a purchase or a sale. Held while the
+    /// terms are on screen. Selling in particular used to be a single keypress that could put a just-forged
+    /// weapon on the counter for a fraction of the ore it cost, with nothing between the cursor and the till.
+    /// </summary>
+    private Item? _pending;
+    private bool _pendingIsSale;
+
     /// <summary>Shop equipment tops out at Rank B — anything above that (and every carry-capacity bag)
     /// only drops in dungeons, so there's always a reason to go adventuring instead of just shopping.</summary>
     private static readonly Rank[] ShopEquipmentRanks = { Rank.H, Rank.G, Rank.F, Rank.E, Rank.D, Rank.C, Rank.B };
@@ -105,6 +113,26 @@ public sealed class ShopScreen : IScreen
         var input = ctx.Input;
         var player = ctx.Player!;
 
+        // A deal on the counter answers before anything else — including travel, which would otherwise walk
+        // out of the shop with a question still open.
+        if (_pending is { } deal)
+        {
+            if (MenuNav.Confirmed(input))
+            {
+                if (_pendingIsSale)
+                    Sell(player, deal);
+                else
+                    Buy(player, deal);
+                _pending = null;
+            }
+            else if (MenuNav.Cancelled(input))
+            {
+                _pending = null;
+                _message = null;
+            }
+            return;
+        }
+
         if (_travel.Update(ctx, Place.Shop))
             return;
 
@@ -167,10 +195,12 @@ public sealed class ShopScreen : IScreen
         if (!MenuNav.Confirmed(input) || count == 0)
             return;
 
-        if (selling)
-            Sell(player);
-        else
-            Buy(player, StockOf(_open.Value)[_cursor]());
+        // Confirm puts the deal on the counter rather than through the till. The stock rows are built fresh
+        // every frame, so the purchase holds the very instance it will hand over, not an index into a list
+        // that will have been rebuilt by the time the answer comes back.
+        _pending = selling ? player.Bag[_cursor] : StockOf(_open.Value)[_cursor]();
+        _pendingIsSale = selling;
+        _message = null;
     }
 
     private void Buy(Player player, Item item)
@@ -191,12 +221,24 @@ public sealed class ShopScreen : IScreen
         _message = $"{item.Name}を購入した";
     }
 
-    private void Sell(Player player)
+    /// <summary>
+    /// A whole bag entry across the counter. <see cref="Item.SellValue"/> is the price of one, and a bag entry
+    /// can be a stack of several — this used to remove the stack and pay for a single item, so a player selling
+    /// five herbs was handing four of them over for nothing. The row and the confirmation both quote the total
+    /// now, and the total is what is paid.
+    /// </summary>
+    private void Sell(Player player, Item item)
     {
-        var item = player.Bag[_cursor];
-        player.EarnGold(item.SellValue);
-        player.Bag.RemoveAt(_cursor);
-        _message = $"{item.Name}を{item.SellValue}Gで売却した";
+        // Found by identity rather than by the cursor: the answer arrives a frame or more after the question,
+        // and nothing guarantees the cursor is still on the same row of a list that shrinks as it is sold from.
+        var index = player.Bag.IndexOf(item);
+        if (index < 0)
+            return;
+
+        var total = SellTotal(item);
+        player.EarnGold(total);
+        player.Bag.RemoveAt(index);
+        _message = $"{item.Name}を{total}Gで売却した";
 
         // The list just shrank under the cursor; without this, selling the last row throws on the next press.
         if (_cursor >= player.Bag.Count && _cursor > 0)
@@ -223,6 +265,9 @@ public sealed class ShopScreen : IScreen
 
         StatusPanel.Draw(ctx, ShopRoom.Size, 0, 400);
         _travel.Draw(ctx, Place.Shop);
+
+        if (_pending is { } deal)
+            DrawDealPopup(ctx, player, deal);
     }
 
     /// <summary>
@@ -262,6 +307,38 @@ public sealed class ShopScreen : IScreen
         _ => "持ち物を売る",
     };
 
+    /// <summary>
+    /// The deal, written out. The purse before and after is the point of it: the list quotes a price, but what
+    /// the player actually needs to know at the moment of paying is whether they can still afford the potion
+    /// they came in for afterwards.
+    /// </summary>
+    private void DrawDealPopup(GameContext ctx, Player player, Item item)
+    {
+        var price = _pendingIsSale ? SellTotal(item) : item.Value;
+        var after = _pendingIsSale ? player.Gold + price : player.Gold - price;
+        var affordable = _pendingIsSale || player.Gold >= price;
+
+        var lines = new List<ConfirmPopup.Line>();
+
+        // Only worth saying when there is more than one, but then it is essential: the price quoted is for the
+        // whole stack, and the player needs to see that the whole stack is what leaves the bag.
+        if (_pendingIsSale && item.Quantity > 1)
+            lines.Add(new ConfirmPopup.Line("個数", $"{item.Quantity}個 (1個 {item.SellValue}G)"));
+
+        lines.Add(new ConfirmPopup.Line(_pendingIsSale ? "買取価格" : "価格", $"{price}G", Colors.Gold));
+        lines.Add(new ConfirmPopup.Line("所持金", $"{player.Gold}G"));
+        lines.Add(new ConfirmPopup.Line(_pendingIsSale ? "売却後の所持金" : "購入後の所持金", $"{after}G",
+            affordable ? Colors.White : Colors.HpBar));
+
+        // Buying can fail for want of a slot as easily as for want of money, so both are on the panel.
+        if (!_pendingIsSale)
+            lines.Add(new ConfirmPopup.Line("鞄の空き", $"{player.Bag.Count}/{player.BagCapacity}",
+                player.BagHasRoom ? Colors.White : Colors.HpBar));
+
+        ConfirmPopup.Draw(ctx, item.Name, ctx.Sprites.ItemIcon(item), lines,
+            _pendingIsSale ? "売却しますか？" : "購入しますか？");
+    }
+
     /// <summary>One line of the department's list: what it looks like, and what it says.</summary>
     private readonly record struct Row(IntPtr Icon, string Label);
 
@@ -270,8 +347,11 @@ public sealed class ShopScreen : IScreen
              .Select(i => new Row(ctx.Sprites.ItemIcon(i), $"{i.Name}  {i.Value}G"))
              .ToArray();
 
+    /// <summary>What the whole bag entry fetches — one item's price times however many are stacked in it.</summary>
+    private static int SellTotal(Item item) => item.SellValue * Math.Max(1, item.Quantity);
+
     private static Row[] SellRows(GameContext ctx, Player player) =>
-        player.Bag.Select(i => new Row(ctx.Sprites.ItemIcon(i), $"{i.Name} x{i.Quantity}  {i.SellValue}G"))
+        player.Bag.Select(i => new Row(ctx.Sprites.ItemIcon(i), $"{i.Name} x{i.Quantity}  {SellTotal(i)}G"))
                   .ToArray();
 
     /// <summary>

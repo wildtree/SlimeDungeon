@@ -208,8 +208,10 @@ public static class DungeonGenerator
         {
             var (color, gem) = Slime.Roll(map.DungeonElement, map.DungeonRank);
             var slime = Slime.Create(color, map.DungeonRank, map.DungeonElement, gem);
-            var moveTimer = (float)(rnd.NextDouble() * 2.4 + 1.2);
-            map.Slimes.Add(new RoamingSlime { X = x, Y = y, Slime = slime, MoveTimer = moveTimer });
+            map.Slimes.Add(new RoamingSlime
+            {
+                X = x, Y = y, Slime = slime, MoveTimer = RoamingSlime.FirstDelay(rnd),
+            });
         }
 
         PlaceDragon(map, floorTiles, occupied, rnd);

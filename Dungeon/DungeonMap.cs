@@ -55,6 +55,31 @@ public sealed class RoamingSlime
     /// <summary>True briefly after a move, so the map icon shows the "hop" sprite frame instead of idle.</summary>
     public bool HopFrame { get; set; }
     public float HopFrameTimer { get; set; }
+
+    // How long a slime rests between steps. Held here rather than at the two call sites because the dungeon
+    // generator sets the first wait and the screen sets every one after it, and the two drifting apart would
+    // mean slimes moved at one pace on arrival and another for the rest of the trip.
+    private const float RoamMin = 1.4f;
+    private const float RoamRange = 1.12f;
+
+    /// <summary>The first wait, once the floor is generated. Wider than the rest so a room full of slimes does
+    /// not all take its first step on the same frame the player walks in.</summary>
+    public static float FirstDelay(Random rnd) => (float)(rnd.NextDouble() * 1.68 + 0.84);
+
+    public static float NextDelay(Random rnd) => (float)(rnd.NextDouble() * RoamRange + RoamMin);
+
+    /// <summary>
+    /// How long before a step the slime spends shivering. Short: it is a wind-up, not a pause.
+    /// </summary>
+    public const float ShiverSeconds = 0.4f;
+
+    /// <summary>
+    /// 0 while the slime is resting, then climbing to 1 at the instant it steps. Drawing multiplies the
+    /// shiver by this, so the tremble builds instead of switching on — a fixed-amplitude wobble that appears
+    /// from nothing reads as a glitch rather than as an animal gathering itself.
+    /// </summary>
+    public float ShiverProgress =>
+        MoveTimer <= 0 || MoveTimer > ShiverSeconds ? 0f : (ShiverSeconds - MoveTimer) / ShiverSeconds;
 }
 
 public sealed class DungeonMap
