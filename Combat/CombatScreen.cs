@@ -267,6 +267,14 @@ public sealed class CombatScreen : IScreen
         switch ((MenuCommand)_cursor)
         {
             case MenuCommand.Attack:
+                // Nothing to choose between when only one is left: asking which of one slime to hit is a
+                // keypress that can only be answered one way.
+                var alive = _battle.AliveEnemies;
+                if (alive.Count == 1)
+                {
+                    AttackTarget(ctx, alive[0]);
+                    break;
+                }
                 _phase = Phase.TargetSelect;
                 _cursor = 0;
                 break;
@@ -313,12 +321,15 @@ public sealed class CombatScreen : IScreen
         if (MenuNav.Left(input) || MenuNav.Up(input)) _cursor = (_cursor - 1 + alive.Count) % alive.Count;
 
         if (MenuNav.Confirmed(input))
-        {
-            var target = alive[_cursor];
-            ctx.Audio.Play(SoundId.WeaponHit);
-            _pendingPlayerAction = () => _battle.PlayerAttack(target);
-            ResolveRound();
-        }
+            AttackTarget(ctx, alive[_cursor]);
+    }
+
+    /// <summary>Swings at one slime. Shared by the target cursor and by the single-enemy shortcut.</summary>
+    private void AttackTarget(GameContext ctx, Slime target)
+    {
+        ctx.Audio.Play(SoundId.WeaponHit);
+        _pendingPlayerAction = () => _battle.PlayerAttack(target);
+        ResolveRound();
     }
 
     private void UpdateSpellSelect(GameContext ctx, InputManager input)
@@ -571,7 +582,12 @@ public sealed class CombatScreen : IScreen
     /// It used to carry "12/40  6/6" on a line of its own underneath at 8pt, which at that size against a
     /// painted floor was barely legible and said twice over what the bar already shows. The bar is the current
     /// value; the only number it cannot convey is the scale it is measured against, so that is the only number
-    /// printed. The letter, bar and figure are centred as one block under the slime.
+    /// printed.
+    ///
+    /// The <em>bar</em> is what is centred under the slime — not the label-bar-figure block. Centring the whole
+    /// block let the width of the figure decide where the bar sat, so a slime with 6 MP and 10 HP had its two
+    /// bars visibly out of line with each other, and no two slimes in a row agreed either. Bars that are meant
+    /// to be compared at a glance have to start and end at the same place.
     /// </summary>
     private static void DrawGauge(GameContext ctx, float centreX, float y, string label, int current, int max, SDL.Color color)
     {
@@ -580,12 +596,13 @@ public sealed class CombatScreen : IScreen
 
         var maxText = max.ToString();
         var (maxW, _) = fonts.Measure(maxText, 9);
-        var blockW = GaugeLabelWidth + GaugeBarWidth + GaugeNumberGap + maxW;
-        var barX = centreX - blockW / 2f + GaugeLabelWidth;
+        var barX = centreX - GaugeBarWidth / 2f;
 
-        // A dark plate behind the whole block: the flagstones under it are mottled, and grey-on-grey text at
-        // this size disappears into them.
-        r.FillRect(barX - GaugeLabelWidth - 2, y - 3, blockW + 4, GaugeHeight + 6, Colors.Rgb(10, 10, 14, 190));
+        // A dark plate behind the lot: the flagstones under it are mottled, and grey-on-grey text at this size
+        // disappears into them.
+        var plateX = barX - GaugeLabelWidth - 2f;
+        var plateW = GaugeLabelWidth + GaugeBarWidth + GaugeNumberGap + maxW + 4f;
+        r.FillRect(plateX, y - 3, plateW, GaugeHeight + 6, Colors.Rgb(10, 10, 14, 190));
 
         fonts.DrawText(r.Handle, label, barX - GaugeLabelWidth, y - 2, 9, Colors.Rgb(186, 182, 176));
 
