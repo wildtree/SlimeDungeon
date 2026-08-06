@@ -5,27 +5,30 @@ using SlimeDungeon.Graphics;
 
 namespace SlimeDungeon.UI;
 
-/// <summary>The 'i' overlay: equipment + bag, usable from the guild or the dungeon alike.</summary>
+/// <summary>
+/// What the character is wearing, and what in the bag could replace it.
+///
+/// This used to be the whole inventory — slots, bag, and every verb that applied to anything. Using and
+/// appraising have moved to <see cref="ItemOverlay"/>, which is the screen for the pack itself; what is left
+/// here is only what this screen is for: putting things on and taking them off, with the stat change from doing
+/// so shown before you commit.
+/// </summary>
 public sealed class InventoryOverlay
 {
-    private enum Phase { List, ItemActionMenu, SlotSelect, ForgetSpellSelect }
-    private enum ItemAction { Use, Equip, Unequip, Discard }
+    private enum Phase { List, ItemActionMenu, SlotSelect }
+    private enum ItemAction { Equip, Unequip, Discard }
 
     private Phase _phase = Phase.List;
     private int _cursor;
     private int _actionCursor;
     private int _slotChoiceCursor;
     private string? _message;
-    private Item? _pendingScroll;
     private Item? _selectedItem;
 
     /// <summary>Which equipment slot <see cref="_selectedItem"/> came out of, or null if it came from the bag.</summary>
     private EquipSlot? _selectedItemSlot;
 
     private Item? _pendingSlotItem;
-
-    /// <summary>Non-null only while a dungeon is being explored; see <see cref="GameContext.RevealFullMap"/>.</summary>
-    private Action? _revealFullMap;
 
     private EquipSlot[] _slotChoices = Array.Empty<EquipSlot>();
     private List<ItemAction> _availableActions = new();
@@ -61,7 +64,6 @@ public sealed class InventoryOverlay
         _actionCursor = 0;
         _slotChoiceCursor = 0;
         _message = null;
-        _pendingScroll = null;
         _selectedItem = null;
         _selectedItemSlot = null;
         _pendingSlotItem = null;
@@ -73,13 +75,9 @@ public sealed class InventoryOverlay
     {
         var input = ctx.Input;
         var player = ctx.Player!;
-        _revealFullMap = ctx.RevealFullMap;
 
         switch (_phase)
         {
-            case Phase.ForgetSpellSelect:
-                UpdateForgetSpell(input, player);
-                return;
             case Phase.ItemActionMenu:
                 UpdateItemActionMenu(input, player);
                 return;
@@ -92,7 +90,7 @@ public sealed class InventoryOverlay
         // close half was left behind, an undocumented key that could shut the screen by surprise.
         if (MenuNav.Cancelled(input))
         {
-            ctx.ShowInventory = false;
+            ctx.ShowEquipment = false;
             Reset();
             return;
         }
@@ -109,8 +107,8 @@ public sealed class InventoryOverlay
             if (!player.Equipment.TryGetValue(slot, out var equipped))
                 return;
 
-            // A readied consumable is still a consumable — outside a fight it can be drunk straight out of its
-            // slot, so it gets the same action menu a bag item does rather than only ever being taken off.
+            // A readied consumable is taken off through the action menu rather than by one keypress, because
+            // "外す" needs bag room and the menu is where that failure can be reported.
             if (IsItemSlot(slot))
             {
                 Select(player, equipped, slot);
@@ -142,11 +140,13 @@ public sealed class InventoryOverlay
 
     private static bool IsItemSlot(EquipSlot slot) => slot is EquipSlot.Item1 or EquipSlot.Item2;
 
+    /// <summary>
+    /// Only ever putting on, taking off, or throwing away. Drinking and appraising live on the item screen —
+    /// this one is about what is worn, and a potion's effect has no bearing on that decision.
+    /// </summary>
     private static List<ItemAction> BuildActions(Item item, EquipSlot? fromSlot)
     {
         var actions = new List<ItemAction>();
-        if (IsUsableFromInventory(item))
-            actions.Add(ItemAction.Use);
         if (fromSlot is null && item.HasEquipSlot)
             actions.Add(ItemAction.Equip);
         if (fromSlot is not null)
@@ -155,22 +155,11 @@ public sealed class InventoryOverlay
         return actions;
     }
 
-    /// <summary>
-    /// What "使う" applies to outside a fight. Map scrolls belong here: they were reachable only through an
-    /// unadvertised M key while this screen offered nothing but "捨てる". Firecrackers and caltrops do not —
-    /// there is nothing to throw them at until a slime turns up.
-    /// </summary>
-    private static bool IsUsableFromInventory(Item item) =>
-        item.Category is ItemCategory.Herb or ItemCategory.Potion or ItemCategory.Antidote
-            or ItemCategory.Scroll or ItemCategory.FullMapReveal;
-
     private static string ActionLabel(ItemAction action) => action switch
     {
-        ItemAction.Use => "使う",
         ItemAction.Equip => "装備する",
         ItemAction.Unequip => "外す",
-        ItemAction.Discard => "捨てる",
-        _ => action.ToString(),
+        _ => "捨てる",
     };
 
     private void UpdateItemActionMenu(InputManager input, Player player)
@@ -191,9 +180,6 @@ public sealed class InventoryOverlay
         var item = _selectedItem;
         switch (_availableActions[_actionCursor])
         {
-            case ItemAction.Use:
-                UseConsumable(player, item);
-                break;
             case ItemAction.Equip:
                 EquipItem(player, item);
                 break;
@@ -205,8 +191,7 @@ public sealed class InventoryOverlay
                 break;
         }
 
-        // UseConsumable may switch to ForgetSpellSelect (scroll while 4 spells known), and EquipItem may switch
-        // to SlotSelect (nowhere free to put it); don't stomp either.
+        // EquipItem may switch to SlotSelect (nowhere free to put it); don't stomp it.
         if (_phase == Phase.ItemActionMenu)
         {
             _phase = Phase.List;
@@ -217,77 +202,6 @@ public sealed class InventoryOverlay
         var count = Slots.Length + player.Bag.Count;
         if (_cursor >= count)
             _cursor = Math.Max(0, count - 1);
-    }
-
-    private void UseConsumable(Player player, Item item)
-    {
-        switch (item.Category)
-        {
-            case ItemCategory.Herb:
-            {
-                var amount = ConsumableEffects.HerbHealAmount(item.Rank, player.Stats.MaxHp);
-                player.Stats.Hp = Math.Min(player.Stats.MaxHp, player.Stats.Hp + amount);
-                player.ConsumeOne(item);
-                _message = $"{item.Name}を使った。HPが{amount}回復した";
-                break;
-            }
-            case ItemCategory.Potion:
-            {
-                var isHp = item.PotionKind == PotionKind.Hp;
-                var amount = ConsumableEffects.PotionRestoreAmount(
-                    item.Rank, isHp ? player.Stats.MaxHp : player.Stats.MaxMp);
-                if (isHp) player.Stats.Hp = Math.Min(player.Stats.MaxHp, player.Stats.Hp + amount);
-                else player.Stats.Mp = Math.Min(player.Stats.MaxMp, player.Stats.Mp + amount);
-                player.ConsumeOne(item);
-                _message = $"{item.Name}を使った。{(isHp ? "HP" : "MP")}が{amount}回復した";
-                break;
-            }
-            case ItemCategory.Antidote:
-                _message = "戦闘中でないと使えない";
-                break;
-            case ItemCategory.FullMapReveal:
-                if (_revealFullMap is null)
-                {
-                    _message = "ダンジョンの中でしか使えない";
-                    break;
-                }
-                player.ConsumeOne(item);
-                _revealFullMap();
-                _message = $"{item.Name}を使った";
-                break;
-            case ItemCategory.Scroll:
-            {
-                // A scroll for a spell already known is an upgrade, not a duplicate. Refusing it outright meant
-                // a ストーン(H) learned early blocked every stronger ストーン the character would ever find,
-                // which is the opposite of how the ranks are supposed to work. It overwrites in place and costs
-                // no extra slot, since it is the same spell it was.
-                var known = player.KnownSpells.FirstOrDefault(s => s.Id == item.SpellTaught);
-                var name = SpellDefinitions.NameOf(item.SpellTaught);
-
-                if (known is not null && item.Rank <= known.Rank)
-                {
-                    _message = item.Rank == known.Rank
-                        ? "すでに覚えているまほうだ"
-                        : $"覚えている{name}のほうが上位だ";
-                }
-                else if (known is null && player.KnownSpells.Count >= Player.MaxKnownSpells)
-                {
-                    _pendingScroll = item;
-                    _phase = Phase.ForgetSpellSelect;
-                    _cursor = 0;
-                }
-                else
-                {
-                    var upgraded = known is not null;
-                    player.LearnSpell(item.SpellTaught, item.Rank);
-                    player.ConsumeOne(item);
-                    _message = upgraded
-                        ? $"{name}が{known!.Rank.Label()}から{item.Rank.Label()}になった"
-                        : $"{name}を覚えた";
-                }
-                break;
-            }
-        }
     }
 
     private void EquipItem(Player player, Item item)
@@ -406,29 +320,6 @@ public sealed class InventoryOverlay
         _message = displaced is not null
             ? $"{displaced.Name}を外して{item.Name}を装備した"
             : $"{item.Name}を装備した";
-    }
-
-    private void UpdateForgetSpell(InputManager input, Player player)
-    {
-        if (MenuNav.Cancelled(input))
-        {
-            _phase = Phase.List;
-            _pendingScroll = null;
-            return;
-        }
-
-        _cursor = MenuNav.Move(input, _cursor, player.KnownSpells.Count);
-        if (!MenuNav.Confirmed(input) || _pendingScroll is null)
-            return;
-
-        var forget = player.KnownSpells[_cursor];
-        player.ForgetSpell(forget.Id);
-        player.LearnSpell(_pendingScroll.SpellTaught, _pendingScroll.Rank);
-        player.ConsumeOne(_pendingScroll);
-        _message = $"{SpellDefinitions.NameOf(forget.Id)}を忘れて{SpellDefinitions.NameOf(_pendingScroll.SpellTaught)}を覚えた";
-        _pendingScroll = null;
-        _phase = Phase.List;
-        _cursor = 0;
     }
 
     /// <summary>Every candidate slot is occupied: the player picks which one gets displaced.</summary>
@@ -621,25 +512,11 @@ public sealed class InventoryOverlay
         r.DrawRect(60, 20, 520, 360, Colors.Border);
         var fonts = ctx.Fonts;
 
-        if (_phase == Phase.ForgetSpellSelect)
-        {
-            fonts.DrawText(r.Handle, "まほうを4つ覚えている。どれを忘れる？", 76, 36, 13, Colors.Highlight);
-            var spellLabels = player.KnownSpells.Select(s => $"{SpellDefinitions.NameOf(s.Id)} ({s.Rank.Label()})").ToArray();
-            var spellMaxWidth = MenuNav.MaxLabelWidth(ctx, spellLabels, 12);
-            var y = 66f;
-            for (var i = 0; i < spellLabels.Length; i++)
-            {
-                MenuNav.DrawRow(ctx, 76, y, spellMaxWidth, 16, spellLabels[i], 12, i == _cursor);
-                y += 18;
-            }
-            ControlHints.Draw(ctx, 76, 360, 10, Colors.Border, ControlHints.Cancel("やめる"));
-            return;
-        }
-
-        fonts.DrawText(r.Handle, "持ち物", 76, 32, 16, Colors.White);
+        fonts.DrawText(r.Handle, "装備", 76, 32, 16, Colors.White);
+        fonts.DrawText(r.Handle, "枠を選んで外す／鞄のものを選んで装備する", 130, 37, 10, Colors.Border);
 
         var yy = 60f;
-        fonts.DrawText(r.Handle, "装備:", 76, yy, 12, Colors.Highlight);
+        fonts.DrawText(r.Handle, "装備中:", 76, yy, 12, Colors.Highlight);
         yy += 18;
         var slotLabels = Slots.Select(slot =>
         {

@@ -31,6 +31,14 @@ public sealed class ForgeScreen : IScreen
 
     private readonly TravelMenu _travel = new();
 
+    /// <summary>
+    /// The piece just finished, while the smith asks whether to put it on. It is already in the bag by this
+    /// point — the offer moves it out of the bag into a slot, so declining costs nothing and needs no undo.
+    /// </summary>
+    private Item? _justForged;
+    private EquipSlot[] _forgedSlots = [];
+    private int _forgedCursor;
+
     private static readonly Metal?[] Sets = Forge.Sets.ToArray();
 
     private Metal? SelectedSet => Sets[_setCursor];
@@ -53,6 +61,14 @@ public sealed class ForgeScreen : IScreen
     {
         var input = ctx.Input;
         var player = ctx.Player!;
+
+        // The offer answers before anything else — travel included, which would otherwise walk out of the shop
+        // with a question still open.
+        if (_justForged is { } forged)
+        {
+            UpdateEquipOffer(ctx, player, forged, input);
+            return;
+        }
 
         if (_travel.Update(ctx, Place.Smith))
             return;
@@ -182,9 +198,60 @@ public sealed class ForgeScreen : IScreen
         player.Forge(recipe);
         _message = $"{recipe.Name}を打ち上げた！";
 
+        // Straight into the offer. A new piece is almost always meant to be worn, and the alternative was
+        // leaving the shop and comparing two names on the equipment screen to find out if it was an upgrade.
+        var made = player.Bag.LastOrDefault(i => i.ForgeId == recipe.Id);
+        var slots = made is null ? [] : EquipOfferPopup.Slots(made);
+        if (made is not null && slots.Length > 0)
+        {
+            _justForged = made;
+            _forgedSlots = slots;
+            // On the first slot rather than on "leave it": the player just paid ore for this.
+            _forgedCursor = 0;
+        }
+
         // A completed set may have just earned a collector title, but nothing is awarded here: the guild
         // settles titles when you come back to the counter, which is where the fanfare and the announcement
         // already live. Walking out of the forge is what triggers it.
+    }
+
+    /// <summary>
+    /// The "wear it?" question. Cancel and the last row both mean the same thing — it stays in the bag — because
+    /// a question that can only be escaped one way is a question people learn to dismiss without reading.
+    /// </summary>
+    private void UpdateEquipOffer(GameContext ctx, Player player, Item forged, InputManager input)
+    {
+        if (MenuNav.Cancelled(input))
+        {
+            _justForged = null;
+            return;
+        }
+
+        _forgedCursor = MenuNav.Move(input, _forgedCursor, EquipOfferPopup.RowCount(_forgedSlots));
+
+        if (!MenuNav.Confirmed(input))
+            return;
+
+        if (EquipOfferPopup.Chosen(_forgedSlots, _forgedCursor) is { } slot)
+        {
+            player.Bag.Remove(forged);
+            if (player.TryEquip(forged, slot, out var displaced))
+            {
+                if (displaced is not null)
+                    player.Bag.Add(displaced);
+                _message = displaced is not null
+                    ? $"{displaced.Name}を外して{forged.Name}を装備した"
+                    : $"{forged.Name}を装備した";
+            }
+            else
+            {
+                // Should not happen — the slots offered come from the item itself — but never lose the piece.
+                player.Bag.Add(forged);
+                _message = $"{forged.Name}はそこには装備できない";
+            }
+        }
+
+        _justForged = null;
     }
 
     public void Draw(GameContext c)
@@ -215,6 +282,9 @@ public sealed class ForgeScreen : IScreen
 
         StatusPanel.Draw(c, ShopRoom.Size, 0, 400);
         _travel.Draw(c, Place.Smith);
+
+        if (_justForged is { } forged)
+            EquipOfferPopup.Draw(c, player, forged, _forgedSlots, _forgedCursor);
     }
 
     // Columns are drawn at fixed offsets from the sheet's left edge rather than by padding the strings.

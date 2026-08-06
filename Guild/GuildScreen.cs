@@ -64,13 +64,13 @@ public sealed class GuildScreen : IScreen
     private enum Entry
     {
         Quest, Bounty, Heal, Titles, Records,
-        Inventory, KillLog, Magic,
+        Items, Equipment, KillLog, Magic,
     }
 
     private static Entry[] Entries =>
     [
         Entry.Quest, Entry.Bounty, Entry.Heal, Entry.Titles, Entry.Records,
-        Entry.Inventory, Entry.KillLog, Entry.Magic,
+        Entry.Items, Entry.Equipment, Entry.KillLog, Entry.Magic,
     ];
 
     private static string Label(Entry entry, Player player) => entry switch
@@ -82,7 +82,8 @@ public sealed class GuildScreen : IScreen
         Entry.Heal => $"回復 ({HealCost(player)}G)",
         Entry.Titles => "称号",
         Entry.Records => "冒険者の記録",
-        Entry.Inventory => "アイテム",
+        Entry.Items => "アイテム",
+        Entry.Equipment => "装備",
         Entry.KillLog => "討伐記録",
         _ => "まほう",
     };
@@ -165,7 +166,8 @@ public sealed class GuildScreen : IScreen
             case Entry.Heal: HandleHeal(player); break;
             case Entry.Titles: ctx.Screens.ChangeTo(new TitleSelectScreen()); break;
             case Entry.Records: ctx.Screens.ChangeTo(new RecordsScreen()); break;
-            case Entry.Inventory: ctx.ShowInventory = true; _menuOpen = false; break;
+            case Entry.Items: ctx.ShowItems = true; _menuOpen = false; break;
+            case Entry.Equipment: ctx.ShowEquipment = true; _menuOpen = false; break;
             case Entry.KillLog: ctx.ShowKillLog = true; _menuOpen = false; break;
             case Entry.Magic:
                 if (!_magic.TryOpen(player, out var reason))

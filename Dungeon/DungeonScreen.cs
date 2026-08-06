@@ -19,9 +19,10 @@ public sealed class DungeonScreen : IScreen
     private readonly FieldMagicMenu _magic = new();
 
     /// <summary>The field menu: the same three entries the guild counter carries at its foot.</summary>
-    private enum MenuEntry { Inventory, KillLog, Magic }
+    private enum MenuEntry { Items, Equipment, KillLog, Magic }
 
-    private static readonly MenuEntry[] MenuEntries = [MenuEntry.Inventory, MenuEntry.KillLog, MenuEntry.Magic];
+    private static readonly MenuEntry[] MenuEntries =
+        [MenuEntry.Items, MenuEntry.Equipment, MenuEntry.KillLog, MenuEntry.Magic];
     private bool _menuOpen;
     private int _menuCursor;
 
@@ -398,8 +399,12 @@ public sealed class DungeonScreen : IScreen
 
         switch (MenuEntries[_menuCursor])
         {
-            case MenuEntry.Inventory:
-                ctx.ShowInventory = true;
+            case MenuEntry.Items:
+                ctx.ShowItems = true;
+                _menuOpen = false;
+                break;
+            case MenuEntry.Equipment:
+                ctx.ShowEquipment = true;
                 _menuOpen = false;
                 break;
             case MenuEntry.KillLog:
@@ -416,7 +421,8 @@ public sealed class DungeonScreen : IScreen
 
     private static string MenuLabel(MenuEntry entry) => entry switch
     {
-        MenuEntry.Inventory => "アイテム",
+        MenuEntry.Items => "アイテム",
+        MenuEntry.Equipment => "装備",
         MenuEntry.KillLog => "討伐記録",
         _ => "まほう",
     };

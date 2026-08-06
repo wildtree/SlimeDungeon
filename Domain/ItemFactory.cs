@@ -53,15 +53,16 @@ public static class ItemFactory
         new() { Name = EquipmentNames.Bag(rank), Category = ItemCategory.Bag, Rank = rank, BagCapacity = 2 + (int)rank, Value = (int)rank * 8 };
 
     public static Item CreateHerb(Rank rank) =>
-        new() { Name = $"薬草({rank.Label()})", Category = ItemCategory.Herb, Rank = rank, Value = (int)rank * 5 };
+        new() { 
+            Name = EquipmentNames.Herb(rank), Category = ItemCategory.Herb, Rank = rank, Value = (int)rank * 5 };
 
     public static Item CreateAntidoteHerb(Rank rank) =>
-        new() { Name = $"毒消し草({rank.Label()})", Category = ItemCategory.Antidote, Rank = rank, Value = (int)rank * 5 };
+        new() { Name = EquipmentNames.Antidote(rank), Category = ItemCategory.Antidote, Rank = rank, Value = (int)rank * 5 };
 
     public static Item CreatePotion(Rank rank, PotionKind kind) =>
         new()
         {
-            Name = (kind == PotionKind.Hp ? "HPポーション" : "MPポーション") + $"({rank.Label()})",
+            Name = (kind == PotionKind.Hp ? EquipmentNames.HPPotion(rank) : EquipmentNames.MPPotion(rank)),
             Category = ItemCategory.Potion,
             Rank = rank,
             PotionKind = kind,

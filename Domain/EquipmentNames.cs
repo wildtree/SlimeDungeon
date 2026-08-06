@@ -76,6 +76,36 @@ public static class EquipmentNames
         [Rank.A] = "竜革の鞄", [Rank.S] = "伝説の袋", [Rank.SS] = "神話の袋",
     };
 
+    private static readonly Dictionary<Rank, string> Herbs = new()
+    {
+        [Rank.H] = "雑草", [Rank.G] = "野草", [Rank.F] = "青葉草", [Rank.E] = "薬草",
+        [Rank.D] = "癒し草", [Rank.C] = "翠癒草", [Rank.B] = "金露草",
+        [Rank.A] = "月光花", [Rank.S] = "星涙草", [Rank.SS] = "神樹の霊葉",
+    };
+
+    private static readonly Dictionary<Rank, string> Antidotes = new()
+    {
+        [Rank.H] = "苦草", [Rank.G] = "野苦草", [Rank.F] = "山ミント", [Rank.E] = "苦葉草",
+        [Rank.D] = "毒消し草", [Rank.C] = "解毒草", [Rank.B] = "解呪草",
+        [Rank.A] = "白聖草", [Rank.S] = "万毒蓮", [Rank.SS] = "神蛇花",
+    };
+
+    private static readonly Dictionary<Rank, string> HPPotions = new()
+    {
+        [Rank.H] = "傷薬", [Rank.G] = "薬湯", [Rank.F] = "治癒薬",
+        [Rank.E] = "ポーション", [Rank.D] = "ミドルポーション", [Rank.C] = "ハイポーション",
+        [Rank.B] = "王者の秘薬", [Rank.A] = "フェニックスの涙", [Rank.S] = "エリクサー",
+        [Rank.SS] = "神命霊薬",
+    };
+
+    private static readonly Dictionary<Rank, string> MPPotions = new()
+    {
+        [Rank.H] = "ハーブティー", [Rank.G] = "薬茶", [Rank.F] = "魔力薬",
+        [Rank.E] = "エーテルドリンク", [Rank.D] = "マナポーション", [Rank.C] = "エーテル",
+        [Rank.B] = "ハイエーテル", [Rank.A] = "精霊蜜", [Rank.S] = "エーテル・オリジン",
+        [Rank.SS] = "神霊甘露",
+    };
+
     public static string Sword(Rank rank) => Swords[rank];
     public static string Wand(Rank rank) => Wands[rank];
     public static string Shield(Rank rank) => Shields[rank];
@@ -84,6 +114,10 @@ public static class EquipmentNames
     public static string Gauntlet(Rank rank) => Gauntlets[rank];
     public static string Shoes(Rank rank) => ShoesNames[rank];
     public static string Bag(Rank rank) => Bags[rank];
+    public static string Herb(Rank rank) => Herbs[rank];
+    public static string Antidote(Rank rank) => Antidotes[rank];
+    public static string HPPotion(Rank rank) => HPPotions[rank];
+    public static string MPPotion(Rank rank) => MPPotions[rank];
 
     /// <summary>Saves made before this flavor-name table existed still carry the old literal
     /// "◯◯(H)"-style names (Name is stored verbatim per item). Detect that exact old pattern and

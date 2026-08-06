@@ -48,7 +48,8 @@ var ctx = new GameContext
 screens.ChangeTo(new TitleScreen());
 screens.ApplyPendingTransition(ctx);
 
-var inventoryOverlay = new InventoryOverlay();
+var itemOverlay = new ItemOverlay();
+var equipmentOverlay = new InventoryOverlay();
 var killLogOverlay = new KillLogOverlay();
 
 var lastTicks = SDL.GetTicks();
@@ -86,18 +87,22 @@ while (!input.QuitRequested)
     // opens an overlay from a screen's menu can't also reach that overlay's close-check below. The overlays
     // are no longer bound to their own hotkeys — they are entries on the menu now, which is what freed S to
     // be the menu button itself.
-    var overlayActiveBeforeInput = ctx.ShowInventory || ctx.ShowKillLog;
+    var overlayActiveBeforeInput = ctx.AnyOverlayOpen;
 
-    if (overlayActiveBeforeInput && ctx.ShowInventory)
-        inventoryOverlay.Update(ctx, dt);
+    if (overlayActiveBeforeInput && ctx.ShowItems)
+        itemOverlay.Update(ctx, dt);
+    else if (overlayActiveBeforeInput && ctx.ShowEquipment)
+        equipmentOverlay.Update(ctx, dt);
     else if (overlayActiveBeforeInput && ctx.ShowKillLog)
         killLogOverlay.Update(ctx, dt);
-    else if (!overlayActiveBeforeInput && !ctx.ShowInventory && !ctx.ShowKillLog)
+    else if (!overlayActiveBeforeInput && !ctx.AnyOverlayOpen)
         screens.Current.Update(ctx, dt);
 
     screens.Current.Draw(ctx);
-    if (ctx.ShowInventory)
-        inventoryOverlay.Draw(ctx);
+    if (ctx.ShowItems)
+        itemOverlay.Draw(ctx);
+    else if (ctx.ShowEquipment)
+        equipmentOverlay.Draw(ctx);
     else if (ctx.ShowKillLog)
         killLogOverlay.Draw(ctx);
 

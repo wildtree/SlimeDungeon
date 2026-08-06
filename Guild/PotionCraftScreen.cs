@@ -20,6 +20,11 @@ public sealed class PotionCraftScreen : IScreen
 
     private readonly TravelMenu _travel = new();
 
+    /// <summary>The potion just made, while the alchemist asks whether to ready it.</summary>
+    private Item? _justMade;
+    private static readonly EquipSlot[] PotionSlots = [EquipSlot.Item1, EquipSlot.Item2];
+    private int _madeCursor;
+
     /// <summary>Herbs anywhere on the player, bag or readied item slot alike — a herb in an item slot is still
     /// stock the alchemist can work with, and hiding it would look like it had gone missing.</summary>
     private static List<Item> Herbs(Player player) =>
@@ -29,6 +34,12 @@ public sealed class PotionCraftScreen : IScreen
     {
         var input = ctx.Input;
         var player = ctx.Player!;
+
+        if (_justMade is { } made)
+        {
+            UpdateEquipOffer(player, made, input);
+            return;
+        }
 
         if (_travel.Update(ctx, Place.Pharmacy))
             return;
@@ -108,12 +119,59 @@ public sealed class PotionCraftScreen : IScreen
 
         player.Gold -= cost;
         player.ConsumeOne(_selectedHerb);
-        player.Bag.Add(ItemFactory.CreatePotion(_selectedHerb.Rank, kind));
+        var potion = ItemFactory.CreatePotion(_selectedHerb.Rank, kind);
+        player.Bag.Add(potion);
         player.Counters.PotionsCrafted++;
         _message = $"{(kind == PotionKind.Hp ? "HP" : "MP")}ポーションを作った";
         _phase = Phase.SelectHerb;
         _cursor = 0;
         _selectedHerb = null;
+
+        // Ask straight away whether to ready it. A potion in the bag cannot be drunk in a fight at all, so
+        // "made a potion" and "can actually use the potion" are two different states and the second one is
+        // easy to forget to reach.
+        _justMade = potion;
+        // On "leave it in the bag": readying displaces whatever is already in that slot, and the slot is far
+        // more likely to hold something the player put there deliberately than to be empty.
+        _madeCursor = EquipOfferPopup.RowCount(PotionSlots) - 1;
+    }
+
+    /// <summary>
+    /// Which slot to ready the new potion in, or neither. Cancelling does nothing at all and leaves the potion
+    /// in the bag, which is where it already is — the offer only ever moves it out.
+    /// </summary>
+    private void UpdateEquipOffer(Player player, Item potion, InputManager input)
+    {
+        if (MenuNav.Cancelled(input))
+        {
+            _justMade = null;
+            return;
+        }
+
+        _madeCursor = MenuNav.Move(input, _madeCursor, EquipOfferPopup.RowCount(PotionSlots));
+
+        if (!MenuNav.Confirmed(input))
+            return;
+
+        if (EquipOfferPopup.Chosen(PotionSlots, _madeCursor) is { } slot)
+        {
+            player.Bag.Remove(potion);
+            if (player.TryEquip(potion, slot, out var displaced))
+            {
+                if (displaced is not null)
+                    player.Bag.Add(displaced);
+                _message = displaced is not null
+                    ? $"{displaced.Name}を外して{potion.Name}を{EquipOfferPopup.SlotLabel(slot)}に入れた"
+                    : $"{potion.Name}を{EquipOfferPopup.SlotLabel(slot)}に入れた";
+            }
+            else
+            {
+                player.Bag.Add(potion);
+                _message = $"{potion.Name}はそこには入らない";
+            }
+        }
+
+        _justMade = null;
     }
 
     private static void RemoveOne(List<Item> bag, Item item)
@@ -143,6 +201,9 @@ public sealed class PotionCraftScreen : IScreen
 
         StatusPanel.Draw(ctx, ShopRoom.Size, 0, 400);
         _travel.Draw(ctx, Place.Pharmacy);
+
+        if (_justMade is { } made)
+            EquipOfferPopup.Draw(ctx, player, made, PotionSlots, _madeCursor);
     }
 
     /// <summary>
