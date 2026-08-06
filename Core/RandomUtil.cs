@@ -29,12 +29,4 @@ public static class RandomUtil
         return RankExtensions.Clamp(sample);
     }
 
-    /// <summary>Uniformly picks one of the ranks in [median-spread, median+spread], clamped to [H, SS].</summary>
-    public static Rank SampleRankUniform(Rank median, int spread)
-    {
-        var medianValue = (int)median;
-        var low = Math.Max(RankExtensions.Min, medianValue - spread);
-        var high = Math.Min(RankExtensions.Max, medianValue + spread);
-        return (Rank)Shared.Next(low, high + 1);
-    }
 }

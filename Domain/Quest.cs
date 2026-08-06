@@ -146,7 +146,20 @@ public sealed class Quest
     /// easy jobs below your rank pay gold but do not. (This used to award only for *above*-rank quests, which
     /// meant ordinary rank-appropriate work could never promote anyone.)
     /// </summary>
-    public int RankPointsFor(Rank playerRank) => Rank >= playerRank ? 2 : 0;
+    /// <summary>
+    /// What finishing this contract is worth towards promotion, out of the ten a rank costs.
+    ///
+    /// This used to be a flat 2 for anything at or above your rank and nothing at all below it, which had two
+    /// bad consequences. Below-rank work was strictly pointless — easier, worse paid, and no progress — so a
+    /// third of the board was there to be ignored. And a job one rank above yours paid exactly the same as one
+    /// at your own, so there was never a reason to take the harder of two similar postings. Three tiers fixes
+    /// both: reaching up is the fast route, your own rank is the staple, and easy work still counts for
+    /// something on a week when that is all you want to do.
+    /// </summary>
+    public int RankPointsFor(Rank playerRank) =>
+        Rank > playerRank ? 3
+        : Rank == playerRank ? 2
+        : 1;
 
     /// <summary>
     /// EXP paid on completion. Guild work is meant to be the main way an ordinary adventurer gets on in life,

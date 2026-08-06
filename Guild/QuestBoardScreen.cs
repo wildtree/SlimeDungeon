@@ -379,9 +379,12 @@ public sealed class QuestBoardScreen : IScreen
             y += TableRowHeight;
         }
 
-        // The rank colour is what tells you whether a job counts toward promotion, so say so once.
+        // The rank colour is what the promotion points key off, so the key goes on the board. It used to say
+        // gold jobs were worth 2pt, which was wrong in both directions: same-rank jobs were worth 2 as well,
+        // and below-rank ones were worth nothing rather than the 1 they now pay.
         y += 8;
-        fonts.DrawText(r.Handle, "※ランクが金色の依頼は昇格ポイント(2pt)になります", 20, y, 9, Colors.Rgb(150, 142, 128));
+        fonts.DrawText(r.Handle, $"※昇格ポイント: 金色(上位)3pt / 白(同格)2pt　昇格まであと {10 - player.RankPoints}pt",
+            20, y, 9, Colors.Rgb(150, 142, 128));
     }
 
     /// <summary>Quests above your own rank are the ones that advance you, so they are worth spotting.</summary>

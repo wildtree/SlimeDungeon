@@ -56,10 +56,37 @@ public static class QuestFactory
         },
     };
 
+    /// <summary>
+    /// How many postings the board carries. Four was too few to choose from once ore and gem commissions
+    /// started taking slots of their own: a board could easily hold one job at your rank, one below it, and two
+    /// long commissions, and there was nothing on it to advance with.
+    /// </summary>
+    public const int BoardSize = 8;
+
+    /// <summary>
+    /// The rank a new posting comes out at, relative to the adventurer reading the board.
+    ///
+    /// This was a uniform draw across your rank and one either side, so a third of the board sat below your rank
+    /// earning nothing towards promotion. Below-rank work is no longer posted at all: it was strictly worse than
+    /// the same job at your own rank — easier, worse paid, and slower to advance on — so the only thing it did
+    /// was take up a slot. Anyone who wants an easy trip can still walk into a lower-rank dungeon; they just do
+    /// not have to read past four dead postings to find the two that count.
+    /// </summary>
+    private const int OwnWeight = 6;
+    private const int AboveWeight = 4;
+
+    private static Rank SampleQuestRank(Rank playerRank, Random rnd)
+    {
+        var offset = rnd.Next(OwnWeight + AboveWeight) < OwnWeight ? 0 : 1;
+
+        // Clamped, so at SS the reach-up share simply becomes more work at SS rather than thinning the board.
+        return RankExtensions.Clamp((int)playerRank + offset);
+    }
+
     public static Quest CreateRandom(Rank playerRank, int currentDay)
     {
         var rnd = RandomUtil.Shared;
-        var rank = RandomUtil.SampleRankUniform(playerRank, 1);
+        var rank = SampleQuestRank(playerRank, rnd);
         var rankValue = (int)rank;
         // Generous deadlines: a missed job costs a penalty point and three of those demote you, which is a
         // lot of pressure for a game about taking things at your own pace.
@@ -282,13 +309,24 @@ public static class QuestFactory
         for (var i = 0; i < player.OpenQuests.Count; i++)
         {
             var quest = player.OpenQuests[i];
-            if (quest.IsExpired(player.DayCount) || IsUnreasonable(quest))
+            if (quest.IsExpired(player.DayCount) || IsUnreasonable(quest) || IsBelowStanding(quest, player.Rank))
                 player.OpenQuests[i] = CreateRandom(player.Rank, player.DayCount);
         }
 
-        while (player.OpenQuests.Count < 4)
+        while (player.OpenQuests.Count < BoardSize)
             player.OpenQuests.Add(CreateRandom(player.Rank, player.DayCount));
     }
+
+    /// <summary>
+    /// Work the guild would no longer put in front of this adventurer.
+    ///
+    /// Postings otherwise sit until their deadline runs out, so the board a newly promoted adventurer walked back
+    /// to was still the one their old rank had been reading — for up to a fortnight, and that fortnight was the
+    /// worst of the stall. Clearing them on arrival is why a promotion now makes the board better rather than
+    /// worse. Nothing accepted is touched: this only ever rewrites open postings.
+    /// </summary>
+    private static bool IsBelowStanding(Quest quest, Rank playerRank) =>
+        quest.Rank < playerRank;
 
     /// <summary>
     /// Weeds out slay quests asking for more of a species than it is reasonable to find. Boards saved before
