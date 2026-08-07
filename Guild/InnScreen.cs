@@ -87,7 +87,7 @@ public sealed class InnScreen : IScreen
 
         // The picture letters "宿屋" on its own crest, so the heading is only for the fallback wall.
         if (!ShopRoom.DrawBackdrop(ctx, ctx.Sprites.HotelBackdrop))
-            fonts.DrawText(r.Handle, "安宿", 20, 16, 18, Colors.White);
+            fonts.DrawText(r.Handle, "宿酒場", 20, 16, 18, Colors.White);
 
         if (!_menuOpen)
             ShopRoom.DrawPrompt(ctx, "ご用件をどうぞ");

@@ -29,7 +29,7 @@ public sealed class TravelMenu
         Place.Shop => "商店",
         Place.Smith => "鍛冶屋",
         Place.Pharmacy => "薬局",
-        Place.Inn => "安宿",
+        Place.Inn => "宿酒場",
         _ => "ダンジョン入口",
     };
 
