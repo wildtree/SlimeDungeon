@@ -63,6 +63,14 @@ public sealed class Player
     /// </summary>
     public List<string> CraftedRecipes { get; set; } = new();
 
+    /// <summary>
+    /// Display cases bought for the guild's wall, and what is mounted in them. Both default to nothing, so a
+    /// save written before the wall existed loads with an empty one rather than failing.
+    /// </summary>
+    public int TrophyCases { get; set; }
+
+    public List<Item> Trophies { get; set; } = new();
+
     /// <summary>Every title earned so far, in the order they were awarded. Titles are never lost.</summary>
     public List<TitleId> EarnedTitles { get; set; } = new();
 

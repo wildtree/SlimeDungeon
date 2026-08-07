@@ -122,14 +122,44 @@ public static class Forge
         return recipes.ToArray();
     }
 
-    /// <summary>Gold on top of the ore. Rises with the square of the rank, as everything else priced here does.</summary>
-    private static int GoldFor(Rank rank) => (int)rank * (int)rank * 20;
+    /// <summary>
+    /// The smith's fee on top of the ore, per gear rank.
+    ///
+    /// This was rank squared times twenty, which was the wrong shape. A trip's takings — bounty and chests —
+    /// grow with the same 1.6-per-rank curve as everything else in combat, so by iron the fee had fallen to
+    /// about half of what the trips needed to find one ore already paid out, and by mithril it was a rounding
+    /// error against a single gem commission. Gold stopped being a decision, which made every piece of gear
+    /// automatic the moment its ore turned up.
+    ///
+    /// The figures below are each set against measured income: a piece costs roughly what the trips spent
+    /// finding its ore actually earn, rising above that at the top ranks where commissions pay several times
+    /// what the dungeon does. Ore and gold now run out at about the same time, which is the point — the
+    /// interesting question is which piece to spend on, not whether you can afford all seven.
+    ///
+    /// Bronze is deliberately left where it was. It is the metal a new adventurer meets while also paying for
+    /// their first armour and their heals, and there is nothing to fix at a rank where the whole set costs less
+    /// than one gem.
+    /// </summary>
+    private static int GoldFor(Rank rank) => rank switch
+    {
+        Rank.F => 180,      // bronze — unchanged
+        Rank.D => 1100,     // iron
+        Rank.C => 1600,     // copper
+        Rank.B => 2400,     // silver
+        Rank.A => 3600,     // mithril
+        Rank.S => 5400,     // adamantite
+        Rank.SS => 8000,    // orichalcum
+        // No ore has its gear at the other ranks, but a fee is defined for all of them so adding one later
+        // cannot silently produce a free recipe.
+        _ => (int)rank * (int)rank * 20,
+    };
 
     /// <summary>
     /// The slime set is beyond the price list. Three of the rarest ores in the world go into every piece, and
-    /// the fee is meant to be felt even by someone who has been claiming SS bounties for a while.
+    /// the fee is meant to be felt even by someone who has been claiming SS bounties for a while — so it stays
+    /// half again above orichalcum now that orichalcum itself costs what it does.
     /// </summary>
-    public const int SlimeSetGold = 8000;
+    public const int SlimeSetGold = 12000;
 
     internal static Item Build(ForgeRecipe recipe)
     {

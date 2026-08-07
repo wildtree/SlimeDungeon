@@ -28,6 +28,7 @@ public sealed class SpriteFactory : IDisposable
     public const string ShopArtFile = "shop.png";
     public const string SmithArtFile = "smith.png";
     public const string PharmacyArtFile = "pharmacy.png";
+    public const string HotelArtFile = "hotel.png";
 
     /// <summary>The mouth of the dungeon: the fifth place on the travel menu, and the only one outdoors.</summary>
     public const string DungeonArtFile = "dungeon.png";
@@ -71,6 +72,7 @@ public sealed class SpriteFactory : IDisposable
     public IntPtr ShopBackdrop { get; private set; }
     public IntPtr SmithBackdrop { get; private set; }
     public IntPtr PharmacyBackdrop { get; private set; }
+    public IntPtr HotelBackdrop { get; private set; }
     public IntPtr DungeonEntranceBackdrop { get; private set; }
 
     /// <summary>The painted title screen, or zero — in which case the procedural one is used instead.</summary>
@@ -169,6 +171,7 @@ public sealed class SpriteFactory : IDisposable
         ShopBackdrop = LoadOptional(renderer, ShopArtFile);
         SmithBackdrop = LoadOptional(renderer, SmithArtFile);
         PharmacyBackdrop = LoadOptional(renderer, PharmacyArtFile);
+        HotelBackdrop = LoadOptional(renderer, HotelArtFile);
         DungeonEntranceBackdrop = LoadOptional(renderer, DungeonArtFile);
         TitleArtwork = LoadOptional(renderer, TitleArtFile);
         BattleArtwork = LoadOptional(renderer, BattleArtFile);

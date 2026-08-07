@@ -4,7 +4,7 @@ using SlimeDungeon.Guild;
 namespace SlimeDungeon.UI;
 
 /// <summary>Everywhere the travel menu will take you. The order is the order the rows are drawn in.</summary>
-public enum Place { Guild, Shop, Smith, Pharmacy, Dungeon }
+public enum Place { Guild, Shop, Smith, Pharmacy, Inn, Dungeon }
 
 /// <summary>
 /// Getting from one place to another.
@@ -19,8 +19,9 @@ public enum Place { Guild, Shop, Smith, Pharmacy, Dungeon }
 /// </summary>
 public sealed class TravelMenu
 {
+    /// <summary>The town first, then the way out of it — the dungeon stays last however many places there are.</summary>
     private static readonly Place[] Places =
-        [Place.Guild, Place.Shop, Place.Smith, Place.Pharmacy, Place.Dungeon];
+        [Place.Guild, Place.Shop, Place.Smith, Place.Pharmacy, Place.Inn, Place.Dungeon];
 
     private static string Label(Place place) => place switch
     {
@@ -28,6 +29,7 @@ public sealed class TravelMenu
         Place.Shop => "商店",
         Place.Smith => "鍛冶屋",
         Place.Pharmacy => "薬局",
+        Place.Inn => "安宿",
         _ => "ダンジョン入口",
     };
 
@@ -37,6 +39,7 @@ public sealed class TravelMenu
         Place.Shop => new ShopScreen(),
         Place.Smith => new ForgeScreen(),
         Place.Pharmacy => new PotionCraftScreen(),
+        Place.Inn => new InnScreen(),
         _ => new DungeonSelectScreen(),
     };
 

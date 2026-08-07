@@ -7,7 +7,10 @@ using SlimeDungeon.UI;
 
 namespace SlimeDungeon.Guild;
 
-/// <summary>The guild hub: quest board, shop, potion crafting, healing, and dungeon select all branch from here.</summary>
+/// <summary>
+/// The guild hub. Only guild business is on the counter now — the shop, the smith, the alchemist, the inn and
+/// the dungeon are all places of their own, reached from the travel menu.
+/// </summary>
 public sealed class GuildScreen : IScreen
 {
     private int _cursor;
@@ -51,10 +54,6 @@ public sealed class GuildScreen : IScreen
         SaveManager.Save(player);
     }
 
-    /// <summary>Full HP/MP restore costs more as the character levels up (and can afford it) — a flat
-    /// 10G per level keeps it cheap early on without staying trivial once stats have grown a lot.</summary>
-    private static int HealCost(Player player) => player.Level * 10;
-
     /// <summary>
     /// What the counter offers. The shop, the smith, the alchemist and the dungeon used to be on this list;
     /// they are places rather than errands, so they moved to the travel menu and left the counter with only
@@ -63,13 +62,13 @@ public sealed class GuildScreen : IScreen
     /// </summary>
     private enum Entry
     {
-        Quest, Bounty, Heal, Titles, Records,
+        Quest, Bounty, Titles, Trophies, Records,
         Items, Equipment, KillLog, Magic,
     }
 
     private static Entry[] Entries =>
     [
-        Entry.Quest, Entry.Bounty, Entry.Heal, Entry.Titles, Entry.Records,
+        Entry.Quest, Entry.Bounty, Entry.Titles, Entry.Trophies, Entry.Records,
         Entry.Items, Entry.Equipment, Entry.KillLog, Entry.Magic,
     ];
 
@@ -79,8 +78,10 @@ public sealed class GuildScreen : IScreen
         // The pending total is on the label itself: gold from slimes is only collected here now, so leaving it
         // unclaimed has to be visible from the hub rather than something you have to go and look for.
         Entry.Bounty => player.PendingBountyTotal > 0 ? $"討伐報酬 ({player.PendingBountyTotal}G)" : "討伐報酬",
-        Entry.Heal => $"回復 ({HealCost(player)}G)",
         Entry.Titles => "称号",
+        Entry.Trophies => player.TrophyCases > 0
+            ? $"展示室 ({player.Trophies.Count}/{player.TrophyCases})"
+            : "展示室",
         Entry.Records => "冒険者の記録",
         Entry.Items => "アイテム",
         Entry.Equipment => "装備",
@@ -163,8 +164,8 @@ public sealed class GuildScreen : IScreen
         {
             case Entry.Quest: ctx.Screens.ChangeTo(new QuestBoardScreen()); break;
             case Entry.Bounty: ctx.Screens.ChangeTo(new BountyScreen()); break;
-            case Entry.Heal: HandleHeal(player); break;
             case Entry.Titles: ctx.Screens.ChangeTo(new TitleSelectScreen()); break;
+            case Entry.Trophies: ctx.Screens.ChangeTo(new TrophyHallScreen()); break;
             case Entry.Records: ctx.Screens.ChangeTo(new RecordsScreen()); break;
             case Entry.Items: ctx.ShowItems = true; _menuOpen = false; break;
             case Entry.Equipment: ctx.ShowEquipment = true; _menuOpen = false; break;
@@ -176,26 +177,6 @@ public sealed class GuildScreen : IScreen
         }
     }
 
-    private void HandleHeal(Player player)
-    {
-        if (player.Stats.Hp >= player.Stats.MaxHp && player.Stats.Mp >= player.Stats.MaxMp)
-        {
-            _message = "すでに元気だ";
-            return;
-        }
-
-        var cost = HealCost(player);
-        if (player.Gold < cost)
-        {
-            _message = "所持金が足りない";
-            return;
-        }
-
-        player.Gold -= cost;
-        player.Stats.Hp = player.Stats.MaxHp;
-        player.Stats.Mp = player.Stats.MaxMp;
-        _message = $"{cost}Gで全快した";
-    }
 
     public void Draw(GameContext ctx)
     {
