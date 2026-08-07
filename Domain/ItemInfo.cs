@@ -69,6 +69,7 @@ public static class ItemInfo
             case ItemCategory.Herb:
                 lines.Add($"HPを最大値の {ConsumableEffects.HerbHealFraction(item.Rank) * 100:F0}% 回復");
                 lines.Add("いつでも使える");
+                lines.Add("薬局でHPポーションに加工できる");
                 break;
             case ItemCategory.Potion:
             {
@@ -80,6 +81,8 @@ public static class ItemInfo
             case ItemCategory.Antidote:
                 lines.Add("毒を治す");
                 lines.Add("戦闘中しか使えない");
+                // The second use is the less obvious one and the reason to keep more than a couple on hand.
+                lines.Add("薬局でMPポーションに加工できる");
                 break;
             case ItemCategory.Scroll:
                 lines.Add($"{SpellDefinitions.NameOf(item.SpellTaught)}（{item.Rank.Label()}）を覚える");
