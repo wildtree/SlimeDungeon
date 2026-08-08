@@ -641,9 +641,30 @@ public sealed class CombatScreen : IScreen
         var x = centre - size / 2f;
         var y = groundY - SpriteSize - size - 6f + bob;
 
-        var weapon = _battle.Player.Equipment.GetValueOrDefault(EquipSlot.RightHand);
-        var icon = weapon is not null ? ctx.Sprites.ItemIcon(weapon) : ctx.Sprites.HintIcon(HintIcon.Confirm);
+        var held = CursorItem(_battle.Player);
+        var icon = held is not null ? ctx.Sprites.ItemIcon(held) : ctx.Sprites.HintIcon(HintIcon.Confirm);
         ctx.Renderer.DrawTexture(icon, x, y, size, size);
+    }
+
+    /// <summary>
+    /// What the attack cursor is drawn as: whatever is actually being swung.
+    ///
+    /// This read the right hand and nothing else, which showed a shield as the attack cursor whenever the sword
+    /// happened to be in the left — and either hand is a legal home for a weapon. It now looks for a weapon
+    /// first, in either hand, and only falls back to the right hand's contents when there is no weapon at all.
+    /// Two shields is therefore a shield, which is honest: that is what the character is holding.
+    /// </summary>
+    private static Item? CursorItem(Domain.Player player)
+    {
+        var right = player.Equipment.GetValueOrDefault(EquipSlot.RightHand);
+        var left = player.Equipment.GetValueOrDefault(EquipSlot.LeftHand);
+
+        if (right?.Category == ItemCategory.Weapon)
+            return right;
+        if (left?.Category == ItemCategory.Weapon)
+            return left;
+
+        return right ?? left;
     }
 
     /// <summary>
