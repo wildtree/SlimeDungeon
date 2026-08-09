@@ -83,11 +83,22 @@ public sealed class InputManager
                 QuitRequested = true;
                 break;
             case SDL.EventType.KeyDown:
-                if (!ev.Key.Repeat && _down.Add(ev.Key.Key))
-                    _pressedThisFrame.Add(ev.Key.Key);
-                break;
             case SDL.EventType.KeyUp:
-                _down.Remove(ev.Key.Key);
+                var key = ev.Key.Key;
+                if (key == SDL.Keycode.K)
+                    key = SDL.Keycode.Up;
+                if (key == SDL.Keycode.J)
+                    key = SDL.Keycode.Down;
+                if (key == SDL.Keycode.H)
+                    key = SDL.Keycode.Left;
+                if (key == SDL.Keycode.L)
+                    key = SDL.Keycode.Right;
+                if ((SDL.EventType)ev.Type == SDL.EventType.KeyDown) {
+                    if (!ev.Key.Repeat && _down.Add(key))
+                        _pressedThisFrame.Add(key);
+                } else {
+                    _down.Remove(key);
+                }
                 break;
             case SDL.EventType.TextInput:
                 var s = Marshal.PtrToStringUTF8(ev.Text.Text);
