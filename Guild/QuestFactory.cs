@@ -108,27 +108,28 @@ public static class QuestFactory
         if (Metals.ForRank(rank) is not null && rnd.NextDouble() < MetalQuestChance)
             return MetalQuest(rank, currentDay, rnd);
 
+        var num = rnd.Next(2, 5);
         return (QuestType)rnd.Next(3) switch
         {
             QuestType.CollectHerb => new Quest
             {
                 Title = "薬草採取",
-                Description = $"{EquipmentNames.Herb(rank)}を{rnd.Next(2, 5)}本納品する",
+                Description = $"{EquipmentNames.Herb(rank)}を{num}本納品する",
                 Type = QuestType.CollectHerb,
                 Rank = rank,
                 TargetItemRank = rank,
-                TargetCount = rnd.Next(2, 5),
+                TargetCount = num,
                 RewardGold = rankValue * 15,
                 DeadlineDay = deadline,
             },
             QuestType.CollectAntidote => new Quest
             {
                 Title = "毒消し草採取",
-                Description = $"{EquipmentNames.Antidote(rank)}を{rnd.Next(2, 5)}本納品する",
+                Description = $"{EquipmentNames.Antidote(rank)}を{num}本納品する",
                 Type = QuestType.CollectAntidote,
                 Rank = rank,
                 TargetItemRank = rank,
-                TargetCount = rnd.Next(2, 5),
+                TargetCount = num,
                 RewardGold = rankValue * 15,
                 DeadlineDay = deadline,
             },
