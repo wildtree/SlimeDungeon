@@ -77,6 +77,12 @@ public sealed class DungeonSelectScreen : IScreen
             var element = DungeonGenerator.RollDungeonElement();
             var map = DungeonGenerator.Generate(rank, element);
             player.Counters.DungeonVisits++;
+
+            // The line the trip is measured from. Nothing that happens underground is written until the stairs
+            // are climbed, so this is the state a quit inside the dungeon falls back to — which is the whole
+            // reason to commit it here rather than trusting the last visit to the guild.
+            Data.SaveManager.Save(player);
+
             // Back out to this same spot, not to the guild.
             ctx.Screens.ChangeTo(new DungeonScreen(map, new DungeonSelectScreen()));
         }

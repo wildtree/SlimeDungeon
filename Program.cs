@@ -109,6 +109,32 @@ while (!input.QuitRequested)
     renderer.Present();
 }
 
+// One last write on the way out, so closing the window in town is a way of stopping rather than a way of losing
+// an afternoon. Until this existed the only autosaves were arriving at the guild, sleeping, buying a display
+// case and climbing the stairs out of a dungeon — which meant a session spent shopping and forging had to be
+// finished with a pointless dungeon trip to commit any of it.
+//
+// Two cases are deliberately left unwritten.
+//
+// A dead character, because GameOverScreen archives them to the history and deletes the active save the moment
+// they fall, but ctx.Player stays set until the epitaph is dismissed. Without the guard, quitting while the
+// headstone was on screen would write the corpse back over the save it had just been removed from, and the
+// adventurer would be sitting in the guild on 0 HP with their own grave already filed.
+//
+// And anything underground. A trip is committed by the stairs, not by the clock: the save taken on the way in
+// is what a quit inside a dungeon falls back to. That does mean closing the window is a way out of a fight
+// going badly, which is a real hole — but the alternative hole was worse, because saving on exit anywhere let
+// a player walk in, empty the chests, quit, and keep the haul without ever spending the day.
+if (ctx.Player is { } departing && !departing.Stats.IsDead && !IsUnderground(screens.Current))
+    SlimeDungeon.Data.SaveManager.Save(departing);
+
+/// <summary>
+/// Whether the character is out on a trip rather than in town. Combat counts: a fight only ever happens inside
+/// a dungeon, and quitting from one has to fall back to the same place the dungeon floor does.
+/// </summary>
+static bool IsUnderground(IScreen screen) =>
+    screen is SlimeDungeon.Dungeon.DungeonScreen or SlimeDungeon.Combat.CombatScreen;
+
 static (MusicId? Track, float Delay, bool Loop) MusicForScreen(IScreen screen) => screen switch
 {
     TitleScreen => (MusicId.Title, 0f, true),
