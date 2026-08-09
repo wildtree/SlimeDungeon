@@ -8,7 +8,7 @@ namespace SlimeDungeon.Guild;
 
 public sealed class NamingScreen : IScreen
 {
-    private enum Phase { Input, Confirm }
+    private enum Phase { Input, Gender, Confirm }
 
     private Phase _phase = Phase.Input;
     private string _name = "";
@@ -43,6 +43,25 @@ public sealed class NamingScreen : IScreen
             return;
         }
 
+        if (_phase == Phase.Gender)
+        {
+            if (MenuNav.Left(input) || MenuNav.Right(input))
+            {
+                _gender = _gender == Gender.Male ? Gender.Female : Gender.Male;
+            }
+            else if (MenuNav.Cancelled(input))
+            {
+                _phase = Phase.Input;
+                input.ClearTextInput();
+            }
+            else if (MenuNav.Confirmed(input))
+            {
+                _phase = Phase.Confirm;
+                input.ClearTextInput();
+            }
+            return;
+        }
+
         while (input.TryDequeueChar(out var c))
         {
             if (_name.Length < 10 && !char.IsControl(c))
@@ -52,11 +71,8 @@ public sealed class NamingScreen : IScreen
         if (input.WasPressed(SDL.Keycode.Backspace) && _name.Length > 0)
             _name = _name[..^1];
 
-        if (MenuNav.Left(input) || MenuNav.Right(input))
-            _gender = _gender == Gender.Male ? Gender.Female : Gender.Male;
-
         if (input.TextEntryConfirmed() && _name.Trim().Length > 0)
-            _phase = Phase.Confirm;
+            _phase = Phase.Gender;
     }
 
     public void Draw(GameContext ctx)
@@ -81,19 +97,25 @@ public sealed class NamingScreen : IScreen
         var nameDisplay = _phase == Phase.Input ? _name + "_" : _name;
         fonts.DrawText(r.Handle, nameDisplay, panelX + 6, 81, 14, Colors.White);
 
-        fonts.DrawText(r.Handle, "性別:", panelX, 114, 12, Colors.Highlight);
-        var genderLabels = new[] { "男", "女" };
-        var genderMaxWidth = MenuNav.MaxLabelWidth(ctx, genderLabels, 14);
-        MenuNav.DrawRow(ctx, panelX, 132, genderMaxWidth, 20, genderLabels[0], 14, _gender == Gender.Male);
-        MenuNav.DrawRow(ctx, panelX, 156, genderMaxWidth, 20, genderLabels[1], 14, _gender == Gender.Female);
-
+        if (_phase != Phase.Input)
+        {
+            fonts.DrawText(r.Handle, "性別:", panelX, 114, 12, Colors.Highlight);
+            var genderLabels = new[] { "男", "女" };
+            var genderMaxWidth = MenuNav.MaxLabelWidth(ctx, genderLabels, 14);
+            MenuNav.DrawRow(ctx, panelX, 132, genderMaxWidth, 20, genderLabels[0], 14, _gender == Gender.Male);
+            MenuNav.DrawRow(ctx, panelX + genderMaxWidth + 10, 132, genderMaxWidth, 20, genderLabels[1], 14, _gender == Gender.Female);
+        }
         var sprite = ctx.Sprites.PlayerSprite(_gender, Direction.Down, WalkFrame.A);
         r.DrawTexture(sprite, panelX + 72, 200, 48, 48);
 
         if (_phase == Phase.Input)
         {
             fonts.DrawText(r.Handle, "文字を入力してください", panelX, 258, 10, Colors.Border);
-            fonts.DrawText(r.Handle, "（左右キーで性別変更）", panelX, 272, 10, Colors.Border);
+            //fonts.DrawText(r.Handle, "（左右キーで性別変更）", panelX, 272, 10, Colors.Border);
+        }
+        else if (_phase == Phase.Gender)
+        {
+            fonts.DrawText(r.Handle, "左右キーで性別変更", panelX, 258, 10, Colors.Border);
         }
         else
         {
@@ -106,9 +128,16 @@ public sealed class NamingScreen : IScreen
         r.DrawRect(boxX, boxY, boxW, boxH, Colors.Border);
         fonts.DrawText(r.Handle, "受付嬢", boxX + 12, boxY + 8, 12, Colors.Highlight);
 
-        var line = _phase == Phase.Input
-            ? "冒険者登録ですね？お名前と性別を教えてください。"
-            : $"{_name.Trim()}様ですね。これでHランク冒険者として登録されました。";
+        var line = "冒険者登録ですね？ お名前を教えてください。";
+        switch (_phase)
+        {
+            case Phase.Gender:
+                line = "性別を教えてください。";
+                break;
+            case Phase.Confirm:
+                line = $"{_name.Trim()}様ですね。これでHランク冒険者として登録されました。";
+                break;
+        }
         fonts.DrawText(r.Handle, line, boxX + 12, boxY + 34, 13, Colors.White);
     }
 }
