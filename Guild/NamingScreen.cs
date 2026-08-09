@@ -135,7 +135,7 @@ public sealed class NamingScreen : IScreen
                 line = "性別を教えてください。";
                 break;
             case Phase.Confirm:
-                line = $"{_name.Trim()}様({(_gender == Gender.Male ? "男性" : "女性")})ですね。これでHランク冒険者として登録してよろしいですか？";
+                line = $"{_name.Trim()}様({(_gender == Gender.Male ? "男性" : "女性")})ですね。こちらでHランク冒険者として登録してよろしいですか？";
                 break;
         }
         fonts.DrawText(r.Handle, line, boxX + 12, boxY + 34, 13, Colors.White);
