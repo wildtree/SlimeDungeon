@@ -11,7 +11,7 @@ public static class QuestFactory
         new Quest
         {
             Title = "薬草採取",
-            Description = "Hランクの薬草を3本納品する",
+            Description = $"{EquipmentNames.Herb(Rank.H)}を3本納品する",
             Type = QuestType.CollectHerb,
             Rank = Rank.H,
             TargetItemRank = Rank.H,
@@ -22,7 +22,7 @@ public static class QuestFactory
         new Quest
         {
             Title = "毒消し草採取",
-            Description = "Hランクの毒消し草を3本納品する",
+            Description = $"{EquipmentNames.Antidote(Rank.H)}を3本納品する",
             Type = QuestType.CollectAntidote,
             Rank = Rank.H,
             TargetItemRank = Rank.H,
@@ -113,7 +113,7 @@ public static class QuestFactory
             QuestType.CollectHerb => new Quest
             {
                 Title = "薬草採取",
-                Description = $"{rank.Label()}ランクの薬草を{rnd.Next(2, 5)}本納品する",
+                Description = $"{EquipmentNames.Herb(rank)}を{rnd.Next(2, 5)}本納品する",
                 Type = QuestType.CollectHerb,
                 Rank = rank,
                 TargetItemRank = rank,
@@ -124,7 +124,7 @@ public static class QuestFactory
             QuestType.CollectAntidote => new Quest
             {
                 Title = "毒消し草採取",
-                Description = $"{rank.Label()}ランクの毒消し草を{rnd.Next(2, 5)}本納品する",
+                Description = $"{EquipmentNames.Antidote(rank)}を{rnd.Next(2, 5)}本納品する",
                 Type = QuestType.CollectAntidote,
                 Rank = rank,
                 TargetItemRank = rank,
