@@ -358,7 +358,16 @@ public sealed class QuestBoardScreen : IScreen
 
             var text = selected ? Colors.Black : Colors.White;
 
-            var icon = q.IsCollection ? ctx.Sprites.QuestGatherIcon : ctx.Sprites.QuestSlayIcon;
+            //var icon = q.IsCollection ? ctx.Sprites.QuestGatherIcon : ctx.Sprites.QuestSlayIcon;
+            var icon = q.Type switch
+            {
+                QuestType.CollectHerb => ctx.Sprites.QuestHerbIcon,
+                QuestType.CollectAntidote => ctx.Sprites.QuestAntidoteIcon,
+                QuestType.DefeatSlime => ctx.Sprites.QuestSlayIcon,
+                QuestType.CollectGem => ctx.Sprites.QuestGemIcon,
+                QuestType.CollectMetal => ctx.Sprites.QuestMetalIcon,
+                _ => throw new ArgumentOutOfRangeException(),
+            };
             r.DrawTexture(icon, ColIcon, y + 1, 15, 15);
 
             fonts.DrawText(r.Handle, q.CategoryLabel, ColCategory, y + 2, 10, text);

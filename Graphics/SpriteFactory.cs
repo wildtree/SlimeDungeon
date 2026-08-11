@@ -87,6 +87,10 @@ public sealed class SpriteFactory : IDisposable
     /// <summary>Small markers for the two kinds of guild work, so the quest board can be scanned by shape.</summary>
     public IntPtr QuestGatherIcon { get; private set; }
     public IntPtr QuestSlayIcon { get; private set; }
+    public IntPtr QuestHerbIcon { get; private set; }
+    public IntPtr QuestAntidoteIcon { get; private set; }
+    public IntPtr QuestGemIcon { get; private set; }
+    public IntPtr QuestMetalIcon { get; private set; }
 
     /// <summary>Stamped wax seal that carries the rank letter on the guild card.</summary>
     public IntPtr RankSeal { get; private set; }
@@ -186,6 +190,10 @@ public sealed class SpriteFactory : IDisposable
         TitleBackdrop = Bake(renderer, TitleArt.BuildBackdrop());
         QuestGatherIcon = Bake(renderer, BuildGatherIcon());
         QuestSlayIcon = Bake(renderer, BuildSlayIcon());
+        QuestHerbIcon = Bake(renderer, BuildHerbIcon());
+        QuestAntidoteIcon = Bake(renderer, BuildAntidoteIcon());
+        QuestGemIcon = Bake(renderer, BuildGemIcon());
+        QuestMetalIcon = Bake(renderer, BuildMetalIcon());
         RankSeal = Bake(renderer, BuildRankSeal());
         GoldIcon = Bake(renderer, BuildGoldIcon());
 
@@ -370,6 +378,65 @@ public sealed class SpriteFactory : IDisposable
         c.AddOutline(Colors.Rgb(24, 40, 20));
         return c;
     }
+
+    private static PixelCanvas BuildHerbIcon()
+    {
+        var c = new PixelCanvas(QuestIconSize, QuestIconSize);
+        c.FillRect(7, 6, 2, 9, Colors.Rgb(84, 128, 62));
+        c.FillEllipse(4, 7, 3.2, 2.2, Colors.Rgb(116, 190, 88));
+        c.FillEllipse(11, 6, 3.2, 2.2, Colors.Rgb(116, 190, 88));
+        c.FillEllipse(8, 3, 2.6, 2.6, Colors.Rgb(140, 210, 104));
+        return c;
+    }
+
+    private static PixelCanvas BuildAntidoteIcon()
+    {
+        var c = new PixelCanvas(QuestIconSize, QuestIconSize);
+        c.FillRect(7, 6, 2, 9, Colors.Rgb(62, 112, 106));
+        c.FillEllipse(4, 7, 3.2, 2.2, Colors.Rgb(84, 176, 160));
+        c.FillEllipse(11, 6, 3.2, 2.2, Colors.Rgb(84, 176, 160));
+        c.FillCircle(8, 3, 2.4, Colors.Rgb(150, 120, 210));
+        return c;
+    }
+
+    private static PixelCanvas BuildGemIcon()
+    {
+        var c = new PixelCanvas(QuestIconSize, QuestIconSize);
+        var facet = Colors.Rgb(150, 210, 240);
+        var facetLight = Colors.Rgb(215, 245, 255);
+        var facetDark = Colors.Rgb(80, 140, 180);
+
+        c.FillRect(4, 4, 8, 2, facetLight);
+        c.FillRect(3, 6, 10, 2, facet);
+        for (var i = 0; i < 5; i++)
+            c.FillRect(3 + i, 8 + i, 10 - i * 2, 1, i < 2 ? facet : facetDark);
+
+        // The spark that makes it read as a gem rather than a blue lozenge.
+        c.FillRect(5, 4, 2, 1, Colors.White);
+        c.FillRect(5, 7, 1, 2, facetLight);
+        return c;
+    }
+
+    private static PixelCanvas BuildMetalIcon()
+    {
+        var c = new PixelCanvas(QuestIconSize, QuestIconSize);
+        var rock = Colors.Rgb(104, 92, 78);
+        var rockDark = Colors.Rgb(66, 58, 48);
+        var vein = Colors.Rgb(206, 168, 96);
+
+        c.FillRect(4, 7, 8, 6, rock);
+        c.FillRect(5, 5, 6, 2, rock);
+        c.FillRect(3, 9, 1, 3, rock);
+        c.FillRect(12, 8, 1, 4, rock);
+        c.FillRect(4, 12, 8, 1, rockDark);
+        c.FillRect(5, 11, 6, 1, rockDark);
+
+        c.FillRect(6, 7, 2, 2, vein);
+        c.FillRect(9, 9, 2, 1, vein);
+        c.FillRect(5, 9, 1, 1, vein);
+        return c;
+    }
+
 
     // ---- Item icons ------------------------------------------------------------
 
