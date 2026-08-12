@@ -385,7 +385,7 @@ public sealed class Player
         while (Exp >= ExpCurve.TotalForLevel(Level + 1))
         {
             Level++;
-            Stats.ApplyLevelUpGrowth();
+            Stats.ApplyLevelUpGrowth(Level);
         }
         ExpToNext = ExpCurve.TotalForLevel(Level + 1);
 

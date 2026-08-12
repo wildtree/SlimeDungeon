@@ -37,17 +37,29 @@ public static class Metals
     /// The ladder. Gear comes out at the top of the band the ore is found in, so a metal is always worth
     /// roughly what the slimes carrying it were worth to fight.
     /// </summary>
+    /// <summary>
+    /// The ladder, one metal per rank from F upward.
+    ///
+    /// Each ore now sits at exactly the rank whose gear it makes, so "the metal for this rank" and "the gear you
+    /// should be wearing at this rank" are the same sentence. Bronze used to span H through F and iron E through
+    /// D, which put iron gear two ranks below where it was needed and left the top of the ladder crowded.
+    ///
+    /// Rank B has no ore of its own. There are seven metals and ten ranks, and B is where the shop's own ladder
+    /// (古木) is strong enough to bridge the gap — better a visible gap in one place than an eighth metal
+    /// invented to fill it.
+    ///
+    /// Bronze also turns up in H and G dungeons, but at <see cref="RareSpawnChance"/> rather than the ordinary
+    /// rate: a new adventurer should hear that metal slimes exist without being able to farm one.
+    /// </summary>
     public static readonly MetalDefinition[] All =
     [
-        // Bronze reaches down to H. It used to start at G, which meant the whole forge — ore, smith, collector
-        // titles — was invisible to a new adventurer: rank H can only enter H and G dungeons, and half of
-        // those had nothing in them to find. A system nobody can stumble into may as well not be there.
         new(Metal.Bronze, "ブロンズ", "青銅", SlimeColor.Bronze, [Rank.H, Rank.G, Rank.F], Rank.F),
-        new(Metal.Iron, "アイアン", "鉄", SlimeColor.Iron, [Rank.E, Rank.D], Rank.D),
-        new(Metal.Copper, "カッパー", "銅", SlimeColor.Copper, [Rank.C], Rank.C),
-        new(Metal.Silver, "シルバー", "銀", SlimeColor.Silver, [Rank.B], Rank.B),
-        new(Metal.Mithril, "ミスリル", "ミスリル", SlimeColor.Mithril, [Rank.A], Rank.A),
-        new(Metal.Adamantite, "アダマンタイト", "アダマンタイト", SlimeColor.Adamantite, [Rank.S], Rank.S),
+        new(Metal.Iron, "アイアン", "鉄", SlimeColor.Iron, [Rank.E], Rank.E),
+        new(Metal.Copper, "カッパー", "銅", SlimeColor.Copper, [Rank.D], Rank.D),
+        new(Metal.Silver, "シルバー", "銀", SlimeColor.Silver, [Rank.C], Rank.C),
+        // Adamantite below mithril: the rarest ore in the world should be the one the last rank is built from.
+        new(Metal.Adamantite, "アダマンタイト", "アダマンタイト", SlimeColor.Adamantite, [Rank.A], Rank.A),
+        new(Metal.Mithril, "ミスリル", "ミスリル", SlimeColor.Mithril, [Rank.S], Rank.S),
         new(Metal.Orichalcum, "オリハルコン", "オリハルコン", SlimeColor.Orichalcum, [Rank.SS], Rank.SS),
     ];
 
@@ -67,15 +79,27 @@ public static class Metals
         All.FirstOrDefault(m => m.Ranks.Contains(rank));
 
     /// <summary>
-    /// How often a slime in an ore-bearing dungeon turns out to be the metal one.
+    /// How often a slime in the ore's own rank of dungeon turns out to be the metal one.
     ///
     /// Tuned against the rate a player actually *meets* one, which is roughly half the rate they are placed at:
-    /// a trip is a walk to the stairs, not a sweep of the floor. 12% came out at under a third of trips and
-    /// read as broken; 20% came out at nearly one trip in two and read as too common. This sits between them,
-    /// at about one metal slime every three or four dungeons — rare enough to be a small event, frequent
-    /// enough that nobody wonders whether the feature exists.
+    /// a trip is a walk to the stairs, not a sweep of the floor. At 13% a metal slime turned up every three or
+    /// four trips, which made a full seven-piece set a routine errand rather than a project. At 6% it is about
+    /// one in seven or eight — still often enough that nobody wonders whether the feature exists.
     /// </summary>
-    public const double SlimeSpawnChance = 0.13;
+    public const double SlimeSpawnChance = 0.06;
+
+    /// <summary>
+    /// The rate for a metal appearing outside its own rank — which is only bronze, in H and G dungeons. Low
+    /// enough that a beginner meets one perhaps once in thirty trips: a story rather than a supply.
+    /// </summary>
+    public const double RareSpawnChance = 0.012;
+
+    /// <summary>
+    /// How often a metal slime turns up in a dungeon of this rank, which is the ordinary rate at the ore's own
+    /// rank and the rare one anywhere else it reaches.
+    /// </summary>
+    public static double SpawnChanceAt(Rank rank) =>
+        ForRank(rank) is { } ore && ore.GearRank == rank ? SlimeSpawnChance : RareSpawnChance;
 
     /// <summary>
     /// The share of a floor's slimes an ordinary trip actually fights. Measured by walking the shortest route

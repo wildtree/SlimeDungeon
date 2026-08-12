@@ -57,10 +57,23 @@ public static class CombatMath
         Math.Max(1, (int)Math.Round(SlimeBaseHp * KillMargin * RankPower(effectiveRank) * (1 + statBonus)));
 
     /// <summary>
+    /// What a point of STR (or INT) is worth. The divisor is set so that the cap is only approached by a
+    /// high-level adventurer <em>carrying good gear</em>, not by levelling alone.
+    ///
+    /// It used to be 400, which meant the cap was reached at 60 STR — around level 30 under the old growth
+    /// curve, and well before it under any curve. Past that point a weapon's "+8 STR" changed the damage by
+    /// exactly nothing, which is why forged gear felt pointless: only its rank still counted for anything.
+    /// </summary>
+    private const double StatPerPoint = 1000.0;
+
+    /// <summary>
     /// STR's (or INT's) bounded contribution. Deliberately gentle and capped: stats decide margins, ranks
     /// decide outcomes.
     /// </summary>
-    public static double StatBonus(int stat) => Math.Clamp(stat / 400.0, 0, MaxStatBonus);
+    public static double StatBonus(int stat) => Math.Clamp(stat / StatPerPoint, 0, MaxStatBonus);
+
+    /// <summary>The stat at which the bonus saturates, for the balance harness to report against.</summary>
+    public static int StatBonusCapAt => (int)Math.Ceiling(MaxStatBonus * StatPerPoint);
 
     public static AttackRoll Roll() => new(
         (int)Math.Round(Math.Clamp(RandomUtil.Shared.NextGaussian(RollMean, RollStdDev), 0, 100)));

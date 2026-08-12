@@ -142,12 +142,15 @@ public static class Forge
     /// </summary>
     private static int GoldFor(Rank rank) => rank switch
     {
-        Rank.F => 180,      // bronze — unchanged
-        Rank.D => 1100,     // iron
-        Rank.C => 1600,     // copper
-        Rank.B => 2400,     // silver
-        Rank.A => 3600,     // mithril
-        Rank.S => 5400,     // adamantite
+        // Keyed to the rank each ore now sits at. The figures themselves are the ones already tuned against
+        // measured income per metal — they simply moved with the metals when the ladder was packed to one ore
+        // per rank. Rank B has no ore at all, so it never reaches this table.
+        Rank.F => 180,      // bronze — deliberately cheap, see below
+        Rank.E => 1100,     // iron
+        Rank.D => 1600,     // copper
+        Rank.C => 2400,     // silver
+        Rank.A => 3600,     // adamantite
+        Rank.S => 5400,     // mithril
         Rank.SS => 8000,    // orichalcum
         // No ore has its gear at the other ranks, but a fee is defined for all of them so adding one later
         // cannot silently produce a free recipe.

@@ -133,7 +133,9 @@ public sealed class Slime
     {
         var rnd = RandomUtil.Shared;
 
-        if (Metals.ForRank(dungeonRank) is { } ore && rnd.NextDouble() < Metals.SlimeSpawnChance)
+        // The rate depends on whether this is the ore's own rank or one it merely reaches into — bronze in an H
+        // dungeon is a rumour, bronze in an F dungeon is the local metal.
+        if (Metals.ForRank(dungeonRank) is { } ore && rnd.NextDouble() < Metals.SpawnChanceAt(dungeonRank))
             return (ore.Slime, null);
 
         var gems = Gems.Available(dungeonRank, dungeonElement).ToArray();
@@ -144,8 +146,49 @@ public sealed class Slime
         if (rnd.NextDouble() < FavoredColorChance)
             return (favored, null);
 
+        return (PickFromLeftover(favored, rnd), null);
+    }
+
+    /// <summary>
+    /// How much of the non-favoured slice each colour gets.
+    ///
+    /// This used to be an even split, which made White exactly as common as Blue — one slime in seventy, or a
+    /// white slime every twenty-five trips. White is the species that shrugs off weapons and runs away, and at
+    /// that rate it stopped being a curiosity and became a recurring annoyance. Poison and Gold have their own
+    /// reasons to stay scarce: one inflicts a status the player usually cannot cure yet, and the other is a
+    /// walking purse. The four ordinary colours carry the slice; the three special ones sip at it.
+    /// </summary>
+    private static double LeftoverWeight(SlimeColor color) => color switch
+    {
+        SlimeColor.Poison => 0.5,
+        SlimeColor.Gold => 0.25,
+        SlimeColor.White => 0.15,
+        _ => 1.0,
+    };
+
+    private static SlimeColor PickFromLeftover(SlimeColor favored, Random rnd)
+    {
         var others = OrdinaryColors.Where(c => c != favored).ToArray();
-        return (others[rnd.Next(others.Length)], null);
+        var weights = others.Select(LeftoverWeight).ToArray();
+
+        var roll = rnd.NextDouble() * weights.Sum();
+        for (var i = 0; i < others.Length; i++)
+        {
+            roll -= weights[i];
+            if (roll <= 0)
+                return others[i];
+        }
+        return others[0];
+    }
+
+    /// <summary>This colour's share of the non-favoured slice, for the averages below.</summary>
+    private static double LeftoverShareOf(SlimeColor color, SlimeColor favored)
+    {
+        var others = OrdinaryColors.Where(c => c != favored).ToArray();
+        if (!others.Contains(color))
+            return 0;
+        var total = others.Sum(LeftoverWeight);
+        return (1 - FavoredColorChance) * LeftoverWeight(color) / total;
     }
 
     public static SlimeColor FavoredColorFor(Element? dungeonElement) =>
@@ -177,20 +220,21 @@ public sealed class Slime
     /// </summary>
     public static double AverageSpawnChance(SlimeColor color, double elementDungeonChance)
     {
-        var leftoverShare = (1 - FavoredColorChance) / (OrdinaryColors.Length - 1);
         var elements = new[] { Element.Fire, Element.Water, Element.Wind, Element.Earth };
         var perElement = elementDungeonChance / elements.Length;
 
         // Featureless dungeons favour Green.
-        var total = (1 - elementDungeonChance) *
-                    (color == SlimeColor.Green ? FavoredColorChance : leftoverShare);
+        var total = (1 - elementDungeonChance) * ShareIn(SlimeColor.Green);
 
         foreach (var element in elements)
-            total += perElement * (ColorForElement(element) == color ? FavoredColorChance : leftoverShare);
+            total += perElement * ShareIn(ColorForElement(element));
 
-        // Every rank but H has an ore, and that slice of the spawns is taken before the ordinary roll runs,
-        // so an ordinary colour is this much scarcer than the shares above suggest.
+        // The ore slice is taken before the ordinary roll runs, so an ordinary colour is this much scarcer than
+        // the shares above suggest.
         return total * (1 - Metals.SlimeSpawnChance);
+
+        double ShareIn(SlimeColor favored) =>
+            color == favored ? FavoredColorChance : LeftoverShareOf(color, favored);
     }
 
     public static SlimeColor ColorForElement(Element element) => element switch
