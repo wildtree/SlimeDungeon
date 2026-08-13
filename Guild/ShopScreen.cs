@@ -36,6 +36,15 @@ public sealed class ShopScreen : IScreen
     private Item? _pending;
     private bool _pendingIsSale;
 
+    /// <summary>
+    /// The piece just bought, while the shopkeeper asks whether to put it on. Only ever set for gear that beats
+    /// what is already worn — see <see cref="EquipOfferPopup.IsUpgrade"/>. It is already in the bag by this
+    /// point, so declining costs nothing and needs no undo.
+    /// </summary>
+    private Item? _justBought;
+    private EquipSlot[] _boughtSlots = [];
+    private int _boughtCursor;
+
     /// <summary>Shop equipment tops out at Rank B — anything above that (and every carry-capacity bag)
     /// only drops in dungeons, so there's always a reason to go adventuring instead of just shopping.</summary>
     private static readonly Rank[] ShopEquipmentRanks = { Rank.H, Rank.G, Rank.F, Rank.E, Rank.D, Rank.C, Rank.B };
@@ -112,6 +121,14 @@ public sealed class ShopScreen : IScreen
     {
         var input = ctx.Input;
         var player = ctx.Player!;
+
+        // The "wear it?" offer answers first: it only ever appears immediately after a purchase, so nothing
+        // else can be open behind it.
+        if (_justBought is { } bought)
+        {
+            UpdateEquipOffer(player, bought, input);
+            return;
+        }
 
         // A deal on the counter answers before anything else — including travel, which would otherwise walk
         // out of the shop with a question still open.
@@ -219,6 +236,58 @@ public sealed class ShopScreen : IScreen
         player.Gold -= item.Value;
         player.Bag.Add(item);
         _message = $"{item.Name}を購入した";
+
+        // Straight into the offer, the same way the forge does — but only for weapons and armour, and only when
+        // it is actually a step up. Both halves matter: a shop trip buys plenty of gear that is not an upgrade,
+        // and readied consumables have two slots that are usually empty, so without the gear test every single
+        // herb would have interrupted with "wear it?".
+        var slots = EquipOfferPopup.Slots(item);
+        if (item.IsEquippable && slots.Length > 0 && EquipOfferPopup.IsUpgrade(player, item))
+        {
+            _justBought = item;
+            _boughtSlots = slots;
+            // On the first slot: the player just paid for an upgrade, so wearing it is the expected answer.
+            _boughtCursor = 0;
+        }
+    }
+
+    /// <summary>
+    /// Which slot to put the new piece in, or neither. Cancel and the last row both leave it in the bag, so the
+    /// question can be escaped either way rather than only one.
+    /// </summary>
+    private void UpdateEquipOffer(Player player, Item bought, InputManager input)
+    {
+        if (MenuNav.Cancelled(input))
+        {
+            _justBought = null;
+            return;
+        }
+
+        _boughtCursor = MenuNav.Move(input, _boughtCursor, EquipOfferPopup.RowCount(_boughtSlots));
+
+        if (!MenuNav.Confirmed(input))
+            return;
+
+        if (EquipOfferPopup.Chosen(_boughtSlots, _boughtCursor) is { } slot)
+        {
+            player.Bag.Remove(bought);
+            if (player.TryEquip(bought, slot, out var displaced))
+            {
+                if (displaced is not null)
+                    player.Bag.Add(displaced);
+                _message = displaced is not null
+                    ? $"{displaced.Name}を外して{bought.Name}を装備した"
+                    : $"{bought.Name}を装備した";
+            }
+            else
+            {
+                // Should not happen — the slots offered come from the item itself — but never lose the piece.
+                player.Bag.Add(bought);
+                _message = $"{bought.Name}はそこには装備できない";
+            }
+        }
+
+        _justBought = null;
     }
 
     /// <summary>
@@ -266,7 +335,9 @@ public sealed class ShopScreen : IScreen
         StatusPanel.Draw(ctx, ShopRoom.Size, 0, 400);
         _travel.Draw(ctx, Place.Shop);
 
-        if (_pending is { } deal)
+        if (_justBought is { } bought)
+            EquipOfferPopup.Draw(ctx, player, bought, _boughtSlots, _boughtCursor);
+        else if (_pending is { } deal)
             DrawDealPopup(ctx, player, deal);
     }
 

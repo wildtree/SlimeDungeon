@@ -92,6 +92,45 @@ public static class EquipOfferPopup
         _ => slot.ToString(),
     };
 
+    /// <summary>
+    /// Whether this piece is worth stopping the player to ask about: it goes into a slot they have nothing in,
+    /// or it beats what is already there.
+    ///
+    /// Used by the shop, where every purchase would otherwise interrupt with a question — buying a spare shield
+    /// or a cheaper sword to sell on is a perfectly ordinary thing to do, and being asked "wear it?" every time
+    /// trains the player to dismiss the prompt without reading it. The forge does not need this: nobody spends
+    /// ore and a thousand gold on a piece they did not want.
+    /// </summary>
+    public static bool IsUpgrade(Player player, Item item)
+    {
+        foreach (var slot in Slots(item))
+        {
+            if (!player.Equipment.TryGetValue(slot, out var current))
+                return true;
+
+            // Only ever compared against its own kind. A sword is not "better" than the shield in that hand,
+            // it is a different decision about how to fight — and that one stays the player's to make.
+            if (current.Category != item.Category)
+                continue;
+            if (item.Category == ItemCategory.Weapon && current.WeaponKind != item.WeaponKind)
+                continue;
+
+            if (Merit(item) > Merit(current))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The single number that decides better-or-worse within a kind: armour, helmets and shields are their DEF,
+    /// everything else is its stat bonus.
+    /// </summary>
+    private static int Merit(Item item) =>
+        item.Category is ItemCategory.Shield or ItemCategory.Armor or ItemCategory.Helmet
+            ? item.Def
+            : item.StatBonus;
+
     /// <summary>Rows are the slots, plus one final "leave it in the bag".</summary>
     public static int RowCount(IReadOnlyList<EquipSlot> slots) => slots.Count + 1;
 
