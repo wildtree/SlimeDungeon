@@ -297,22 +297,35 @@ public sealed class ItemOverlay
             ControlHints.Direction("選ぶ"), ControlHints.Confirm("決定"), ControlHints.Cancel("閉じる"));
     }
 
+    /// <summary>Where the item's name starts on the heading line, leaving room for its icon.</summary>
+    private const float ActionHeadingIndent = 28f;
+
     private void DrawActionMenu(GameContext ctx, Item item)
     {
         var r = ctx.Renderer;
+        var fonts = ctx.Fonts;
         var labels = _actions.Select(ActionLabel).ToArray();
-        var maxWidth = MenuNav.MaxLabelWidth(ctx, labels, 12);
-        var w = Math.Max(140f, maxWidth + 40f);
+
+        // The panel has to fit its heading as well as its rows. It was sized from the action labels alone, and
+        // つかう / 鑑定 / 捨てる are all short — so it always settled on the 140px floor and any item with a real
+        // name ran straight out through the right-hand border. "スクロール(ウォーター・H)" is nearly twice that
+        // wide, which is exactly the case that was reported.
+        const float pad = 12f;
+        var heading = ActionHeadingIndent + fonts.Measure(item.Name, 11).Item1;
+        var rows = MenuNav.MaxLabelWidth(ctx, labels, 12) + 28f;
+        var w = Math.Min(Math.Max(140f, Math.Max(heading, rows) + pad), PanelW - 20f);
         var h = 26f + labels.Length * 20f;
-        const float x = 350f;
+
+        // Kept inside the overlay it sits on, so a long name shifts the panel left rather than off the edge.
+        var x = Math.Clamp(350f, PanelX + 10f, PanelX + PanelW - 10f - w);
         const float y = 150f;
 
         r.FillRect(x + 3, y + 4, w, h, Colors.Rgb(6, 6, 10, 170));
         r.FillRect(x, y, w, h, Colors.PanelBg);
         r.DrawRect(x, y, w, h, Colors.Border);
 
-        ctx.Renderer.DrawTexture(ctx.Sprites.ItemIcon(item), x + 10, y + 5, 14, 14);
-        ctx.Fonts.DrawText(r.Handle, item.Name, x + 28, y + 5, 11, Colors.Highlight);
+        r.DrawTexture(ctx.Sprites.ItemIcon(item), x + 10, y + 5, 14, 14);
+        fonts.DrawText(r.Handle, item.Name, x + ActionHeadingIndent, y + 5, 11, Colors.Highlight);
 
         for (var i = 0; i < labels.Length; i++)
             MenuNav.DrawRow(ctx, x + 14, y + 24 + i * 20, w - 28, 18, labels[i], 12, i == _actionCursor);
