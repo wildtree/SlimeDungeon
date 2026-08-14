@@ -67,6 +67,37 @@ public sealed class Quest
         _ => $"{TargetCount}",
     };
 
+    /// <summary>
+    /// The contract compressed to one line for the guild card: what is wanted, how far along, and the unit —
+    /// "苦草1/3本", "イエロー(H)0/2匹".
+    ///
+    /// The count is deliberately not <see cref="Progress"/> on its own. A collection contract banks nothing
+    /// until it is reported, so a card reading off Progress would sit at 0/3 with three herbs already in the
+    /// bag, which is the opposite of the question the player is asking it. What is carried counts towards the
+    /// figure, capped at the target, so the line answers "can I go and report this yet".
+    /// </summary>
+    public string CardSummary(Player player)
+    {
+        var have = IsCollection
+            ? Math.Min(TargetCount, Progress + DeliverableInBag(player))
+            : Math.Min(TargetCount, Progress);
+
+        return Type switch
+        {
+            QuestType.CollectHerb =>
+                $"{EquipmentNames.Herb(TargetItemRank ?? Rank)}{have}/{TargetCount}本",
+            QuestType.CollectAntidote =>
+                $"{EquipmentNames.Antidote(TargetItemRank ?? Rank)}{have}/{TargetCount}本",
+            QuestType.CollectGem =>
+                $"{(TargetGem is { } g ? Gems.NameOf(g) : "宝石")}{have}/{TargetCount}個",
+            QuestType.CollectMetal =>
+                $"{(TargetMetal is { } m ? Metals.Get(m).OreName : "鉱石")}{have}/{TargetCount}個",
+            QuestType.DefeatSlime =>
+                $"{(TargetSlimeColor is { } c ? SlimeNames.Of(c) : "スライム")}({Rank.Label()}){have}/{TargetCount}匹",
+            _ => $"{have}/{TargetCount}",
+        };
+    }
+
     public int Remaining => Math.Max(0, TargetCount - Progress);
 
     public bool IsComplete => Progress >= TargetCount;

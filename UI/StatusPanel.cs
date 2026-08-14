@@ -24,7 +24,7 @@ public static class StatusPanel
         var cx = x + pad;
 
         var cardBottom = DrawGuildCard(ctx, player, x + pad, y + pad, Width - pad * 2);
-        var cy = cardBottom + 10;
+        var cy = cardBottom + 8;
 
         // Stats in two labelled columns rather than one long line, which lets them go up a size and still fit.
         var col2 = cx + 108;
@@ -38,7 +38,7 @@ public static class StatusPanel
         var gold = $"{player.Gold} G";
         var (goldW, _) = fonts.Measure(gold, 12);
         fonts.DrawText(r.Handle, gold, x + Width - pad - goldW, cy, 12, Colors.Gold);
-        cy += 21;
+        cy += 18;
 
         // A rule under the heading, so the equipment reads as its own block instead of running on from the
         // numbers above it.
@@ -63,7 +63,7 @@ public static class StatusPanel
             // The slot name sits in a fixed column so the item names line up down the panel.
             fonts.DrawText(r.Handle, SlotLabel(slot), cx, cy, 10, Colors.Rgb(150, 145, 136));
             fonts.DrawText(r.Handle, name, cx + 52, cy, 10, color);
-            cy += 14;
+            cy += 13;
         }
 
         // The bag is worn like everything else, so it reads as the last equipment row rather than a separate
@@ -101,8 +101,10 @@ public static class StatusPanel
 
         const float headerH = 19f;
         // Tall enough that the portrait and rank seal finish before the vitals begin — at a shorter height the
-        // seal and the HP row ran into each other.
-        const float bodyH = 140f;
+        // seal and the HP row ran into each other. Raised from 140 to make room for the contract line under the
+        // vitals; the sixteen pixels that cost are taken back further down the panel, where the equipment rows
+        // and the gaps around them were each carrying a pixel or two of slack.
+        const float bodyH = 156f;
         var h = headerH + bodyH;
 
         // Card stock: a drop shadow, the gold edge, then the parchment face with a shaded lower half.
@@ -169,8 +171,72 @@ public static class StatusPanel
         DrawCardBar(ctx, barX, by, barW, "MP", player.Stats.Mp, player.Stats.MaxMp, Colors.MpBar, ink);
         by += 22;
         DrawCardBar(ctx, barX, by, barW, "EXP", player.Exp, player.ExpToNext, Colors.ExpBar, ink);
+        by += 25;
+
+        // The contract in hand, as a licence would carry its holder's current commission. Below the vitals
+        // rather than beside them: this is the one field on the card that changes shape from job to job, and a
+        // line of its own is what lets it be as long as it needs to be.
+        fonts.DrawText(r.Handle, "依頼", barX, by, 9, inkSoft);
+        const float questX = 26f;
+        if (player.ActiveQuest is { } quest)
+        {
+            // The deadline is pinned to the right edge and the summary is given what is left, so a long ore
+            // commission shrinks rather than running into the days — the days are the half of this line that
+            // must never be the part that gets clipped.
+            const float daysW = 54f;
+            var (days, daysColor) = DeadlineNote(quest, player.DayCount, ink, inkSoft);
+            DrawRightAligned(ctx, days, barX + barW, by, 9, daysColor);
+            DrawFitted(ctx, quest.CardSummary(player), barX + questX, by - 1,
+                barW - questX - daysW, 11f, ink);
+        }
+        else
+        {
+            fonts.DrawText(r.Handle, "なし", barX + questX, by, 9, inkSoft);
+        }
 
         return y + h;
+    }
+
+    /// <summary>
+    /// How long is left on the contract, and how alarmed to look about it.
+    ///
+    /// The deadline is an absolute calendar day, so the useful figure is the difference from today rather than
+    /// the date itself — "あと3日" is something a player acts on where "秋12日まで" has to be worked out. Due
+    /// today is called out separately from having a day in hand, because those are different decisions: one
+    /// means report before you go back down, the other does not.
+    /// </summary>
+    private static (string Text, SDL3.SDL.Color Color) DeadlineNote(Quest quest, int today,
+        SDL3.SDL.Color ink, SDL3.SDL.Color inkSoft)
+    {
+        var left = quest.DeadlineDay - today;
+        var urgent = Colors.Rgb(158, 44, 32);
+
+        return left switch
+        {
+            < 0 => ("期限切れ", urgent),
+            0 => ("本日まで", urgent),
+            1 => ("あと1日", urgent),
+            <= 3 => ($"あと{left}日", ink),
+            _ => ($"あと{left}日", inkSoft),
+        };
+    }
+
+    /// <summary>
+    /// Draws text at the largest size that still fits the space, down to a floor where it stops being readable.
+    ///
+    /// The quest line is the only thing on the card whose width is not known in advance: "苦草1/3本" is half the
+    /// panel, an ore commission from a named house is most of it, and shrinking a little beats either clipping
+    /// the count off the end or leaving the common case needlessly small.
+    /// </summary>
+    private static void DrawFitted(GameContext ctx, string text, float x, float y, float maxWidth,
+        float size, SDL3.SDL.Color color)
+    {
+        var chosen = size;
+        while (chosen > 8f && ctx.Fonts.Measure(text, chosen).Item1 > maxWidth)
+            chosen -= 1f;
+
+        // Baselines differ by size, so a shrunk line is nudged down to sit level with the label beside it.
+        ctx.Fonts.DrawText(ctx.Renderer.Handle, text, x, y + (size - chosen) * 0.5f, chosen, color);
     }
 
     private static void DrawRightAligned(GameContext ctx, string text, float right, float y, float size, SDL3.SDL.Color color)
