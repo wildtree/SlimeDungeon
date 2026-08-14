@@ -39,17 +39,50 @@ public sealed class InputManager
     /// </summary>
     private void OpenConnectedGamepads()
     {
-        var ids = SDL.GetGamepads(out var count);
-        if (ids is not null)
-        {
-            for (var i = 0; i < count && i < ids.Length; i++)
-                Open(ids[i]);
-        }
+        Rescan();
 
         // Reported so a pad that is plugged in but not working can be told apart from one SDL never saw.
         Console.Error.WriteLine(_gamepads.Count > 0
             ? $"gamepad: {_gamepads.Count} connected"
             : "gamepad: none detected (keyboard only)");
+    }
+
+    /// <summary>Opens every gamepad SDL currently knows about that is not open already.</summary>
+    private void Rescan()
+    {
+        var ids = SDL.GetGamepads(out var count);
+        if (ids is null)
+            return;
+
+        for (var i = 0; i < count && i < ids.Length; i++)
+            Open(ids[i]);
+    }
+
+    /// <summary>How often to look for pads that appeared without an event arriving to say so.</summary>
+    private const float RescanInterval = 2f;
+
+    private float _sinceRescan;
+
+    /// <summary>
+    /// Periodically re-opens whatever is plugged in.
+    ///
+    /// Opening used to happen exactly twice: at startup, and on a GamepadAdded event. That is one missed event
+    /// away from a pad that Windows believes is connected and the game cannot see at all — which is precisely
+    /// the state a Bluetooth pad lands in when the link drops and comes back, since the reconnection is handled
+    /// down in the Bluetooth stack and does not always surface as a fresh SDL device. Two seconds is far below
+    /// what a player would notice as a pause and far above anything that costs measurable time.
+    /// </summary>
+    private void UpdateGamepadRescan(float dt)
+    {
+        _sinceRescan += dt;
+        if (_sinceRescan < RescanInterval)
+            return;
+        _sinceRescan = 0f;
+
+        var before = _gamepads.Count;
+        Rescan();
+        if (_gamepads.Count != before)
+            Console.Error.WriteLine($"gamepad: {_gamepads.Count} connected (found by rescan)");
     }
 
     private void Open(uint id)
@@ -73,6 +106,20 @@ public sealed class InputManager
     {
         _pressedThisFrame.Clear();
         _padPressedThisFrame.Clear();
+    }
+
+    /// <summary>
+    /// Forgets everything the pads were holding. The stick and the auto-repeat clock clear themselves on the
+    /// next sample — a disconnected pad reports no axes — but the button set has no such pass over it.
+    /// </summary>
+    private void ReleaseAllPadInput()
+    {
+        _padDown.Clear();
+        _padPressedThisFrame.Clear();
+        _stickDirection = null;
+        _stickPressedThisFrame = null;
+        _heldFor.Clear();
+        _repeatedThisFrame.Clear();
     }
 
     public void HandleEvent(in SDL.Event ev)
@@ -109,12 +156,26 @@ public sealed class InputManager
 
             case SDL.EventType.GamepadAdded:
                 Open(ev.GDevice.Which);
+                Console.Error.WriteLine($"gamepad: #{ev.GDevice.Which} connected ({_gamepads.Count} total)");
                 break;
             case SDL.EventType.GamepadRemoved:
             {
                 var id = ev.GDevice.Which;
                 if (_gamepads.Remove(id, out var pad))
                     SDL.CloseGamepad(pad);
+
+                // A button held at the instant the link drops never gets its release event, so without this it
+                // stays down for the rest of the session — and a direction stuck down walks the character
+                // across the floor on their own, which reads as the game having lost its mind rather than as
+                // the pad having disconnected. Bluetooth makes this the common case rather than a curiosity:
+                // the link goes while the player's thumb is still on the stick.
+                //
+                // Every pad's state is cleared, not just this one's. Button events carry only the button, so
+                // there is nothing to attribute held state to a particular pad with; on the two-pad case this
+                // costs the other pad a spurious release, which is the harmless direction to be wrong in.
+                ReleaseAllPadInput();
+
+                Console.Error.WriteLine($"gamepad: #{id} disconnected ({_gamepads.Count} remaining)");
                 break;
             }
             case SDL.EventType.GamepadButtonDown:
@@ -192,6 +253,7 @@ public sealed class InputManager
         _stickDirection = direction;
 
         UpdateDirectionRepeat(dt);
+        UpdateGamepadRescan(dt);
     }
 
     // ---- Held-direction auto-repeat -------------------------------------------------------------
