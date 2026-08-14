@@ -276,21 +276,79 @@ public sealed class InputManager
     // ---- Bindings ----------------------------------------------------------------------------
 
     /// <summary>
-    /// The one place the physical bindings are written down. Enter and Escape are kept alongside the letter
-    /// keys because they are what a hand reaches for by reflex, and nothing is lost by accepting both.
+    /// The player's bindings. Supplied at startup and swapped in when the options screen changes them, so the
+    /// physical mapping still lives in exactly one place — that place is now a file the player owns.
     /// </summary>
-    public bool WasPressed(GameAction action) => action switch
+    public Data.Settings Bindings { get; set; } = new();
+
+    /// <summary>
+    /// Keys that cannot be rebound, and why.
+    ///
+    /// The four arrows are the direction pad (and H/J/K/L arrive as arrows — see <see cref="HandleEvent"/>), so
+    /// binding a command to one would make it impossible to move without triggering it. Enter and Escape are
+    /// reserved for a different reason: they are permanent aliases for Confirm and Cancel below, which is what
+    /// guarantees a player who has bound themselves into a corner can always get back out — and they are the
+    /// keys the rebinding screen itself is driven by.
+    /// </summary>
+    public static readonly SDL.Keycode[] ReservedKeys =
+    [
+        SDL.Keycode.Up, SDL.Keycode.Down, SDL.Keycode.Left, SDL.Keycode.Right,
+        SDL.Keycode.Return, SDL.Keycode.Escape,
+    ];
+
+    public static bool IsReserved(SDL.Keycode key) => ReservedKeys.Contains(key);
+
+    /// <summary>
+    /// What the player asked for, from their own key or their own pad button — plus Enter and Escape, which
+    /// answer for Confirm and Cancel whatever else has been bound. Those two are the escape hatch: the option
+    /// screen can be reached and left with them no matter how the rest has been arranged.
+    /// </summary>
+    public bool WasPressed(GameAction action)
     {
-        GameAction.Confirm => WasPressed(SDL.Keycode.X) || WasPressed(SDL.Keycode.Return)
-                              || WasPressed(SDL.GamepadButton.South),
-        GameAction.Cancel => WasPressed(SDL.Keycode.Z) || WasPressed(SDL.Keycode.Escape)
-                             || WasPressed(SDL.GamepadButton.East),
-        GameAction.Menu => WasPressed(SDL.Keycode.S) || WasPressed(SDL.GamepadButton.West),
-        // North is the pad's Y. Sits alongside Menu (West/X) rather than anywhere near Confirm or Cancel,
-        // because leaving a room by accident is a worse mistake than opening a menu by accident.
-        GameAction.Travel => WasPressed(SDL.Keycode.A) || WasPressed(SDL.GamepadButton.North),
-        _ => false,
-    };
+        if (WasPressed(Bindings.KeyFor(action)) || WasPressed(Bindings.PadFor(action)))
+            return true;
+
+        return action switch
+        {
+            GameAction.Confirm => WasPressed(SDL.Keycode.Return),
+            GameAction.Cancel => WasPressed(SDL.Keycode.Escape),
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    /// Any key pressed this frame, for the rebinding prompt. Returns the first in an unspecified order, which
+    /// is the right answer for a screen that is waiting for one keypress and got two in the same frame.
+    /// </summary>
+    public bool TryReadAnyKey(out SDL.Keycode key)
+    {
+        foreach (var pressed in _pressedThisFrame)
+        {
+            key = pressed;
+            return true;
+        }
+        key = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Any pad button pressed this frame. Reads the raw button set rather than <see cref="WasPressed"/>, so the
+    /// stick's synthesised d-pad presses and the auto-repeat cannot be captured as a binding.
+    /// </summary>
+    public bool TryReadAnyPadButton(out SDL.GamepadButton button)
+    {
+        foreach (var pressed in _padPressedThisFrame)
+        {
+            button = pressed;
+            return true;
+        }
+        button = default;
+        return false;
+    }
+
+    /// <summary>The d-pad, which is movement and therefore never a command.</summary>
+    public static bool IsReserved(SDL.GamepadButton button) =>
+        button is DpadUp or DpadDown or DpadLeft or DpadRight;
 
     /// <summary>Confirm while text is being typed. Letter keys are being consumed as text, so only Enter
     /// (or the pad) can mean "done" — otherwise typing an x in a name would submit the form.</summary>

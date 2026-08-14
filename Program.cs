@@ -34,6 +34,12 @@ using var audio = new AudioService();
 var input = new InputManager();
 var screens = new ScreenManager();
 
+// Preferences are read before the first frame so the title screen already plays at the volume the player left
+// it at, and the bindings are theirs from the first keypress rather than from whenever they open the options.
+var settings = SlimeDungeon.Data.SettingsManager.Load();
+input.Bindings = settings;
+audio.SetVolumes(settings.MusicVolume, settings.SoundVolume);
+
 var ctx = new GameContext
 {
     Renderer = renderer,
@@ -43,6 +49,7 @@ var ctx = new GameContext
     Sprites = sprites,
     Audio = audio,
     Window = window,
+    Settings = settings,
 };
 
 screens.ChangeTo(new TitleScreen());
@@ -51,6 +58,7 @@ screens.ApplyPendingTransition(ctx);
 var itemOverlay = new ItemOverlay();
 var equipmentOverlay = new InventoryOverlay();
 var killLogOverlay = new KillLogOverlay();
+var optionsOverlay = new OptionsOverlay();
 
 var lastTicks = SDL.GetTicks();
 while (!input.QuitRequested)
@@ -95,6 +103,8 @@ while (!input.QuitRequested)
         equipmentOverlay.Update(ctx, dt);
     else if (overlayActiveBeforeInput && ctx.ShowKillLog)
         killLogOverlay.Update(ctx, dt);
+    else if (overlayActiveBeforeInput && ctx.ShowOptions)
+        optionsOverlay.Update(ctx, dt);
     else if (!overlayActiveBeforeInput && !ctx.AnyOverlayOpen)
         screens.Current.Update(ctx, dt);
 
@@ -105,6 +115,8 @@ while (!input.QuitRequested)
         equipmentOverlay.Draw(ctx);
     else if (ctx.ShowKillLog)
         killLogOverlay.Draw(ctx);
+    else if (ctx.ShowOptions)
+        optionsOverlay.Draw(ctx);
 
     renderer.Present();
 }

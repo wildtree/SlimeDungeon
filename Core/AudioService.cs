@@ -61,6 +61,29 @@ public sealed class AudioService : IDisposable
 
     public bool Available { get; }
 
+    /// <summary>
+    /// The player's own volumes, 0..1, multiplied into the gains above rather than replacing them. Keeping
+    /// <see cref="MusicGain"/> as a separate factor is what preserves the mix: music sits about 10dB under the
+    /// effects by design, and a player who sets both sliders to 100 should get that balance at full volume, not
+    /// a track competing with every sword swing.
+    /// </summary>
+    private float _musicVolume = 0.7f;
+
+    private float _soundVolume = 0.8f;
+
+    /// <summary>
+    /// Applies the volumes from the options screen. Safe to call every frame — SDL's stream gain is a cheap
+    /// setter and there is nothing to recompute.
+    /// </summary>
+    public void SetVolumes(int musicPercent, int soundPercent)
+    {
+        _musicVolume = Math.Clamp(musicPercent, 0, 100) / 100f;
+        _soundVolume = Math.Clamp(soundPercent, 0, 100) / 100f;
+
+        if (_musicStream != IntPtr.Zero)
+            SDL.SetAudioStreamGain(_musicStream, MusicGain * _musicVolume);
+    }
+
     public AudioService()
     {
         _clips = SoundBank.BuildAll();
@@ -207,6 +230,9 @@ public sealed class AudioService : IDisposable
             return;
 
         var stream = FindFreeStream() ?? TakeOldestStream();
+        // Set per play rather than when the slider moves: effects cycle through a pool of streams, so a stream
+        // that was idle during the change would otherwise still be carrying the old gain when it next fires.
+        SDL.SetAudioStreamGain(stream, _soundVolume);
         SDL.PutAudioStreamData(stream, data, data.Length);
     }
 

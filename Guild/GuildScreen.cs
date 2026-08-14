@@ -63,13 +63,13 @@ public sealed class GuildScreen : IScreen
     private enum Entry
     {
         Quest, Bounty, Titles, Trophies, Records,
-        Items, Equipment, KillLog, Magic,
+        Items, Equipment, KillLog, Magic, Options,
     }
 
     private static Entry[] Entries =>
     [
         Entry.Quest, Entry.Bounty, Entry.Titles, Entry.Trophies, Entry.Records,
-        Entry.Items, Entry.Equipment, Entry.KillLog, Entry.Magic,
+        Entry.Items, Entry.Equipment, Entry.KillLog, Entry.Magic, Entry.Options,
     ];
 
     private static string Label(Entry entry, Player player) => entry switch
@@ -86,7 +86,8 @@ public sealed class GuildScreen : IScreen
         Entry.Items => "アイテム",
         Entry.Equipment => "装備",
         Entry.KillLog => "討伐記録",
-        _ => "まほう",
+        Entry.Magic => "まほう",
+        _ => "オプション",
     };
 
     public void Update(GameContext ctx, float dt)
@@ -174,6 +175,7 @@ public sealed class GuildScreen : IScreen
                 if (!_magic.TryOpen(player, out var reason))
                     _message = reason;
                 break;
+            case Entry.Options: ctx.ShowOptions = true; _menuOpen = false; break;
         }
     }
 

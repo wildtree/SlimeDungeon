@@ -18,11 +18,11 @@ public sealed class DungeonScreen : IScreen
     private (int Dx, int Dy)? _pendingContinue;
     private readonly FieldMagicMenu _magic = new();
 
-    /// <summary>The field menu: the same three entries the guild counter carries at its foot.</summary>
-    private enum MenuEntry { Items, Equipment, KillLog, Magic }
+    /// <summary>The field menu: the same entries the guild counter carries at its foot.</summary>
+    private enum MenuEntry { Items, Equipment, KillLog, Magic, Options }
 
     private static readonly MenuEntry[] MenuEntries =
-        [MenuEntry.Items, MenuEntry.Equipment, MenuEntry.KillLog, MenuEntry.Magic];
+        [MenuEntry.Items, MenuEntry.Equipment, MenuEntry.KillLog, MenuEntry.Magic, MenuEntry.Options];
     private bool _menuOpen;
     private int _menuCursor;
 
@@ -417,6 +417,10 @@ public sealed class DungeonScreen : IScreen
                 if (!_magic.TryOpen(player, out var reason))
                     _session.ShowMessage(reason);
                 break;
+            case MenuEntry.Options:
+                ctx.ShowOptions = true;
+                _menuOpen = false;
+                break;
         }
     }
 
@@ -425,7 +429,8 @@ public sealed class DungeonScreen : IScreen
         MenuEntry.Items => "アイテム",
         MenuEntry.Equipment => "装備",
         MenuEntry.KillLog => "討伐記録",
-        _ => "まほう",
+        MenuEntry.Magic => "まほう",
+        _ => "オプション",
     };
 
     private void DrawMenu(GameContext ctx)
