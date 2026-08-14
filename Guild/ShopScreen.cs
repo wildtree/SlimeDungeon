@@ -23,6 +23,23 @@ public sealed class ShopScreen : IScreen
     private int _cursor;
     private string? _message;
 
+    /// <summary>
+    /// The shelf being looked at inside the weapons or armour department, identified by its rank — which is
+    /// also what its material is, one substance per rank.
+    ///
+    /// Both departments used to be one flat column: seven ranks times five armour pieces is thirty-five rows,
+    /// scrolled fifteen at a time, with 黒檀の兜 and 黒檀の鎧 nowhere near each other because the list ran
+    /// piece-first. Choosing the material first turns that into seven rows and then five, and the five are the
+    /// ones that are actually alternatives to each other.
+    /// </summary>
+    private Rank? _material;
+    private int _materialCursor;
+
+    /// <summary>Weapons and armour are stocked in every rank and so need the shelf; goods and the sell list
+    /// are short enough to read whole.</summary>
+    private static bool HasShelves(Department department) =>
+        department is Department.Weapons or Department.Armour;
+
     /// <summary>False until the player asks for the counter, so walking in shows the shop rather than a list.</summary>
     private bool _menuOpen;
 
@@ -45,46 +62,89 @@ public sealed class ShopScreen : IScreen
     private EquipSlot[] _boughtSlots = [];
     private int _boughtCursor;
 
-    /// <summary>Shop equipment tops out at Rank B — anything above that (and every carry-capacity bag)
-    /// only drops in dungeons, so there's always a reason to go adventuring instead of just shopping.</summary>
+    /// <summary>
+    /// Shop equipment tops out at Rank B — anything above that (and every carry-capacity bag) only drops in
+    /// dungeons, so there's always a reason to go adventuring instead of just shopping.
+    /// </summary>
     private static readonly Rank[] ShopEquipmentRanks = { Rank.H, Rank.G, Rank.F, Rank.E, Rank.D, Rank.C, Rank.B };
+
+    /// <summary>How far above their own standing an adventurer may look. Two shelves, then the shop's ceiling.</summary>
+    private const int OverRankShelves = 2;
+
+    /// <summary>
+    /// What the merchant lays out for <em>this</em> adventurer: their own rank, everything below it, and two
+    /// shelves above.
+    ///
+    /// The whole list used to be on show from the first day, at list price, and that was the single worst
+    /// balance fault in the game: gear prices rise linearly with rank while gear power rises by 1.6 per rank,
+    /// so a rank-G adventurer with a few hundred gold bought the rank-D 黒檀 set, walked into a G dungeon with
+    /// 13 DEF against slimes hitting for 12, and took literally zero damage.
+    ///
+    /// The fix for that was to hide everything above your rank, which fixed the numbers and cost the player
+    /// something worth having — the ability to look at what is coming, and to decide that this season's savings
+    /// are going on one really good breastplate instead of a full set of what they are supposed to be wearing.
+    /// So the shelves are back, and it is <see cref="PriceOf"/> that does the work now: reaching above your
+    /// rank is a project rather than an afternoon.
+    /// </summary>
+    private static Rank[] StockedRanks(Player player) =>
+        ShopEquipmentRanks.Where(r => (int)r <= (int)player.Rank + OverRankShelves).ToArray();
+
+    /// <summary>
+    /// What the merchant charges over list for each rank above the buyer's own. Gear one rank up is worth 1.6
+    /// times what your own is, so anything at or near 1.6 would make buying up strictly correct and the whole
+    /// ladder pointless; at four, a full set two ranks above costs sixteen times list, which measures out as a
+    /// season of saving rather than a shopping trip. That is the "かなり頑張って" this is for.
+    /// </summary>
+    private const int OverRankPremium = 4;
+
+    /// <summary>
+    /// The asking price: list price, times the premium for anything above the buyer's rank.
+    ///
+    /// Deliberately not baked into <see cref="Item.Value"/>. Value is what the thing is actually worth — what
+    /// it fetches back across the counter, at half, and what it is worth as loot. If the premium lived there,
+    /// an over-rank purchase would sell back for eight times what a same-rank one does, and the shop would be a
+    /// money press rather than a shop.
+    /// </summary>
+    public static int PriceOf(Item item, Player player)
+    {
+        var above = Math.Max(0, (int)item.Rank - (int)player.Rank);
+        return item.Value * (int)Math.Pow(OverRankPremium, above);
+    }
 
     private const int VisibleRows = 15;
 
-    private static readonly Func<Item>[] Weapons = BuildWeapons();
-    private static readonly Func<Item>[] Armour = BuildArmour();
-    private static readonly Func<Item>[] Goods = BuildGoods();
-
     /// <summary>Swords and wands — anything swung or pointed.</summary>
-    private static Func<Item>[] BuildWeapons()
+    private static Func<Item>[] BuildWeapons(Rank[] ranks)
     {
         var list = new List<Func<Item>>();
-        foreach (var rank in ShopEquipmentRanks)
+        foreach (var rank in ranks)
         {
-            list.Add(() => ItemFactory.CreateWeapon(rank, WeaponKind.Sword));
-            list.Add(() => ItemFactory.CreateWeapon(rank, WeaponKind.Wand));
+            var r = rank;
+            list.Add(() => ItemFactory.CreateWeapon(r, WeaponKind.Sword));
+            list.Add(() => ItemFactory.CreateWeapon(r, WeaponKind.Wand));
         }
         return list.ToArray();
     }
 
     /// <summary>Everything worn to keep a slime off you: helmet, gauntlet, armour, shield — and boots, which
     /// belong with what you put on rather than with the consumables.</summary>
-    private static Func<Item>[] BuildArmour()
+    private static Func<Item>[] BuildArmour(Rank[] ranks)
     {
         var list = new List<Func<Item>>();
-        foreach (var rank in ShopEquipmentRanks)
+        foreach (var rank in ranks)
         {
-            list.Add(() => ItemFactory.CreateHelmet(rank));
-            list.Add(() => ItemFactory.CreateGauntlet(rank));
-            list.Add(() => ItemFactory.CreateArmor(rank));
-            list.Add(() => ItemFactory.CreateShield(rank));
-            list.Add(() => ItemFactory.CreateShoes(rank));
+            var r = rank;
+            list.Add(() => ItemFactory.CreateHelmet(r));
+            list.Add(() => ItemFactory.CreateGauntlet(r));
+            list.Add(() => ItemFactory.CreateArmor(r));
+            list.Add(() => ItemFactory.CreateShield(r));
+            list.Add(() => ItemFactory.CreateShoes(r));
         }
         return list.ToArray();
     }
 
     /// <summary>The rest: herbs, antidotes, and the two thrown things.</summary>
-    private static Func<Item>[] BuildGoods()
+    private static Func<Item>[] BuildGoods(Rank[] ranks)
     {
         var list = new List<Func<Item>>
         {
@@ -94,20 +154,32 @@ public sealed class ShopScreen : IScreen
 
         // Throwables are stocked across the same rank band as the gear, because unlike a herb their usefulness
         // is pinned to the rank of what you are fighting — a rank-H firecracker is no help in a rank-D dungeon.
-        foreach (var rank in ShopEquipmentRanks)
+        foreach (var rank in ranks)
         {
-            list.Add(() => ItemFactory.CreateFirecracker(rank));
-            list.Add(() => ItemFactory.CreateCaltrops(rank));
+            var r = rank;
+            list.Add(() => ItemFactory.CreateFirecracker(r));
+            list.Add(() => ItemFactory.CreateCaltrops(r));
         }
         return list.ToArray();
     }
 
-    private static Func<Item>[] StockOf(Department department) => department switch
+    /// <summary>
+    /// Built per visit rather than once at startup, because what is on the shelf now depends on who is standing
+    /// at the counter. Cheap: a department is a handful of factory delegates.
+    ///
+    /// <paramref name="material"/> narrows it to the one shelf the player has opened. Goods pass null and get
+    /// the whole department, which is what they were always shown as.
+    /// </summary>
+    private static Func<Item>[] StockOf(Department department, Player player, Rank? material)
     {
-        Department.Weapons => Weapons,
-        Department.Armour => Armour,
-        _ => Goods,
-    };
+        var ranks = material is { } only ? [only] : StockedRanks(player);
+        return department switch
+        {
+            Department.Weapons => BuildWeapons(ranks),
+            Department.Armour => BuildArmour(ranks),
+            _ => BuildGoods(ranks),
+        };
+    }
 
     private static string DepartmentLabel(Department department) => department switch
     {
@@ -150,6 +222,11 @@ public sealed class ShopScreen : IScreen
             return;
         }
 
+        // A shelf outside the window cannot be reached from the menu, but it could be left open across a rank
+        // change; nothing should ever be sold off it.
+        if (_material is { } shelf && !StockedRanks(player).Contains(shelf))
+            _material = null;
+
         if (_travel.Update(ctx, Place.Shop))
             return;
 
@@ -174,21 +251,23 @@ public sealed class ShopScreen : IScreen
         {
             _menuOpen = false;
             _open = null;
+            _material = null;
             _message = null;
             return;
         }
 
         if (MenuNav.Cancelled(input))
         {
-            // Cancel steps back one level: out of a department first, off the counter only from the top.
-            if (_open is null)
+            // Cancel steps back exactly one level: off a shelf, then out of the department, then off the
+            // counter. Three presses from a sword back to the room, each of them undoing one choice.
+            if (_material is not null)
+                _material = null;
+            else if (_open is not null)
+                _open = null;
+            else
             {
                 _menuOpen = false;
                 _message = null;
-            }
-            else
-            {
-                _open = null;
             }
             return;
         }
@@ -199,6 +278,22 @@ public sealed class ShopScreen : IScreen
             if (MenuNav.Confirmed(input))
             {
                 _open = Departments[_departmentCursor];
+                _material = null;
+                _materialCursor = 0;
+                _cursor = 0;
+                _message = null;
+            }
+            return;
+        }
+
+        // The material shelf, for the two departments that have one.
+        if (HasShelves(_open.Value) && _material is null)
+        {
+            var shelves = StockedRanks(player);
+            _materialCursor = MenuNav.Move(input, _materialCursor, shelves.Length);
+            if (MenuNav.Confirmed(input) && shelves.Length > 0)
+            {
+                _material = shelves[_materialCursor];
                 _cursor = 0;
                 _message = null;
             }
@@ -206,7 +301,7 @@ public sealed class ShopScreen : IScreen
         }
 
         var selling = _open == Department.Sell;
-        var count = selling ? player.Bag.Count : StockOf(_open.Value).Length;
+        var count = selling ? player.Bag.Count : StockOf(_open.Value, player, _material).Length;
         _cursor = MenuNav.Move(input, _cursor, count);
 
         if (!MenuNav.Confirmed(input) || count == 0)
@@ -215,14 +310,15 @@ public sealed class ShopScreen : IScreen
         // Confirm puts the deal on the counter rather than through the till. The stock rows are built fresh
         // every frame, so the purchase holds the very instance it will hand over, not an index into a list
         // that will have been rebuilt by the time the answer comes back.
-        _pending = selling ? player.Bag[_cursor] : StockOf(_open.Value)[_cursor]();
+        _pending = selling ? player.Bag[_cursor] : StockOf(_open.Value, player, _material)[_cursor]();
         _pendingIsSale = selling;
         _message = null;
     }
 
     private void Buy(Player player, Item item)
     {
-        if (player.Gold < item.Value)
+        var price = PriceOf(item, player);
+        if (player.Gold < price)
         {
             _message = "所持金が足りない";
             return;
@@ -233,7 +329,7 @@ public sealed class ShopScreen : IScreen
             return;
         }
 
-        player.Gold -= item.Value;
+        player.Gold -= price;
         player.Bag.Add(item);
         _message = $"{item.Name}を購入した";
 
@@ -327,10 +423,12 @@ public sealed class ShopScreen : IScreen
             ShopRoom.DrawPrompt(ctx, "いらっしゃいませ");
         else if (_open is null)
             DrawCounter(ctx);
+        else if (HasShelves(_open.Value) && _material is null)
+            DrawShelves(ctx, player);
         else if (_open == Department.Sell)
             DrawList(ctx, SellRows(ctx, player));
         else
-            DrawList(ctx, StockRows(ctx, StockOf(_open.Value)));
+            DrawList(ctx, StockRows(ctx, player, StockOf(_open.Value, player, _material)));
 
         StatusPanel.Draw(ctx, ShopRoom.Size, 0, 400);
         _travel.Draw(ctx, Place.Shop);
@@ -370,6 +468,77 @@ public sealed class ShopScreen : IScreen
         ShopRoom.DrawFooter(ctx, _message, ControlHints.Confirm("選ぶ"), ControlHints.Cancel("戻る"));
     }
 
+    /// <summary>One shelf: what the material is, who it is for, and what it costs to kit out in it.</summary>
+    private readonly record struct Shelf(IntPtr Icon, string Name, string Note, bool Recommended, bool OverRank);
+
+    /// <summary>
+    /// The price span is read off the stock itself rather than restated here, so a change to what a helmet
+    /// costs cannot leave the shelf quoting last week's figure. Weapons come out to a single price (a sword and
+    /// a wand of a rank cost the same), armour to a range across its five pieces.
+    /// </summary>
+    private static Shelf[] Shelves(GameContext ctx, Department department, Player player)
+    {
+        var weapons = department == Department.Weapons;
+        return StockedRanks(player).Select(rank =>
+        {
+            var pieces = StockOf(department, player, rank).Select(make => make()).ToArray();
+            var low = pieces.Min(p => PriceOf(p, player));
+            var high = pieces.Max(p => PriceOf(p, player));
+            var price = low == high ? $"{low}G" : $"{low}〜{high}G";
+
+            // The archetypal piece of each department, so the shelf reads as swords or as armour at a glance
+            // rather than as whatever happened to be first in the build order.
+            var sample = weapons ? ItemFactory.CreateWeapon(rank, WeaponKind.Sword) : ItemFactory.CreateArmor(rank);
+            var name = weapons ? EquipmentNames.WeaponMaterial(rank) : EquipmentNames.ArmourMaterial(rank);
+
+            return new Shelf(ctx.Sprites.ItemIcon(sample), name, $"{rank.Label()}ランク向け   {price}",
+                rank == player.Rank, rank > player.Rank);
+        }).ToArray();
+    }
+
+    /// <summary>
+    /// The materials on offer, one row each. The player's own rank is marked, because with two shelves of
+    /// over-rank goods below it the bottom row is no longer the answer — and working out which shelf you are
+    /// supposed to be shopping from by reading prices is exactly what this screen exists to avoid.
+    /// </summary>
+    private void DrawShelves(GameContext ctx, Player player)
+    {
+        var r = ctx.Renderer;
+        var fonts = ctx.Fonts;
+        var shelves = Shelves(ctx, _open!.Value, player);
+
+        const float rowStep = 24f;
+        var top = ShopRoom.Draw(ctx, 22f + Math.Max(shelves.Length, 1) * rowStep + ShopRoom.FooterHeight);
+        var x = ShopRoom.ContentX;
+
+        fonts.DrawText(r.Handle, $"{DepartmentLabel(_open.Value)} — 素材を選んでください", x, top, 12, Colors.Highlight);
+
+        var y = top + 24f;
+        if (shelves.Length == 0)
+        {
+            fonts.DrawText(r.Handle, "品切れだ", x, y, 11, Colors.Border);
+        }
+        else
+        {
+            var nameWidth = MenuNav.MaxLabelWidth(ctx, shelves.Select(s => s.Name).ToArray(), 13);
+            for (var i = 0; i < shelves.Length; i++)
+            {
+                var selected = i == _materialCursor;
+                r.DrawTexture(shelves[i].Icon, x, y, 16, 16);
+                MenuNav.DrawRow(ctx, x + 24, y, nameWidth + 10, 19, shelves[i].Name, 13, selected);
+
+                var note = shelves[i].Note
+                           + (shelves[i].Recommended ? "  ★" : "")
+                           + (shelves[i].OverRank ? "  取寄" : "");
+                fonts.DrawText(r.Handle, note, x + nameWidth + 46, y + 4, 10,
+                    selected ? Colors.Highlight : Colors.Border);
+                y += rowStep;
+            }
+        }
+
+        ShopRoom.DrawFooter(ctx, _message, ControlHints.Confirm("選ぶ"), ControlHints.Cancel("売り場へ戻る"));
+    }
+
     private static string Blurb(Department department) => department switch
     {
         Department.Weapons => "剣と杖",
@@ -385,7 +554,7 @@ public sealed class ShopScreen : IScreen
     /// </summary>
     private void DrawDealPopup(GameContext ctx, Player player, Item item)
     {
-        var price = _pendingIsSale ? SellTotal(item) : item.Value;
+        var price = _pendingIsSale ? SellTotal(item) : PriceOf(item, player);
         var after = _pendingIsSale ? player.Gold + price : player.Gold - price;
         var affordable = _pendingIsSale || player.Gold >= price;
 
@@ -395,6 +564,12 @@ public sealed class ShopScreen : IScreen
         // whole stack, and the player needs to see that the whole stack is what leaves the bag.
         if (_pendingIsSale && item.Quantity > 1)
             lines.Add(new ConfirmPopup.Line("個数", $"{item.Quantity}個 (1個 {item.SellValue}G)"));
+
+        // What the markup is and why, for anything above the buyer's standing. Without it the price looks
+        // arbitrary; with it, it reads as a decision the player is being invited to make.
+        if (!_pendingIsSale && item.Rank > player.Rank)
+            lines.Add(new ConfirmPopup.Line("取寄品",
+                $"{item.Rank.Label()}ランク向け（定価{item.Value}G）", Colors.Highlight));
 
         lines.Add(new ConfirmPopup.Line(_pendingIsSale ? "買取価格" : "価格", $"{price}G", Colors.Gold));
         lines.Add(new ConfirmPopup.Line("所持金", $"{player.Gold}G"));
@@ -413,9 +588,19 @@ public sealed class ShopScreen : IScreen
     /// <summary>One line of the department's list: what it looks like, and what it says.</summary>
     private readonly record struct Row(IntPtr Icon, string Label);
 
-    private static Row[] StockRows(GameContext ctx, Func<Item>[] stock) =>
+    /// <summary>
+    /// Over-rank rows say so. The price alone would look like a mistake next to the shelf below it — sixteen
+    /// times list with nothing to explain it reads as a bug, where "取寄" reads as a merchant who has to send
+    /// away for gear the guild does not let someone of your standing walk out with.
+    /// </summary>
+    private static Row[] StockRows(GameContext ctx, Player player, Func<Item>[] stock) =>
         stock.Select(make => make())
-             .Select(i => new Row(ctx.Sprites.ItemIcon(i), $"{i.Name}  {i.Value}G"))
+             .Select(i =>
+             {
+                 var price = PriceOf(i, player);
+                 var note = i.Rank > player.Rank ? "  取寄" : "";
+                 return new Row(ctx.Sprites.ItemIcon(i), $"{i.Name}  {price}G{note}");
+             })
              .ToArray();
 
     /// <summary>What the whole bag entry fetches — one item's price times however many are stacked in it.</summary>
@@ -439,8 +624,7 @@ public sealed class ShopScreen : IScreen
         var top = ShopRoom.Draw(ctx, 22f + Math.Max(shown, 1) * rowStep + ShopRoom.FooterHeight);
         var x = ShopRoom.ContentX;
 
-        var heading = DepartmentLabel(_open!.Value);
-        fonts.DrawText(r.Handle, heading, x, top, 12, Colors.Highlight);
+        fonts.DrawText(r.Handle, ListHeading(), x, top, 12, Colors.Highlight);
 
         // The position counter goes on the heading line, right-aligned, where it does not steal a row.
         if (rows.Length > VisibleRows)
@@ -469,6 +653,23 @@ public sealed class ShopScreen : IScreen
         }
 
         ShopRoom.DrawFooter(ctx, _message,
-            ControlHints.Confirm("決定"), ControlHints.Cancel("売り場へ戻る"));
+            ControlHints.Confirm("決定"),
+            ControlHints.Cancel(_material is null ? "売り場へ戻る" : "素材を選び直す"));
+    }
+
+    /// <summary>
+    /// The department, and the shelf within it once one is open. Standing in front of 黒檀 with a column of
+    /// five pieces that never say 黒檀 anywhere would otherwise leave nothing on screen naming what you picked.
+    /// </summary>
+    private string ListHeading()
+    {
+        var department = DepartmentLabel(_open!.Value);
+        if (_material is not { } rank)
+            return department;
+
+        var material = _open == Department.Weapons
+            ? EquipmentNames.WeaponMaterial(rank)
+            : EquipmentNames.ArmourMaterial(rank);
+        return $"{department} — {material}（{rank.Label()}ランク向け）";
     }
 }

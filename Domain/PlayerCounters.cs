@@ -35,4 +35,14 @@ public sealed class PlayerCounters
 
     public int GemQuestsCompleted { get; set; }
     public int MetalQuestsCompleted { get; set; }
+
+    /// <summary>
+    /// Dungeons taken apart completely — every chest opened, then out by the stairs — above the adventurer's
+    /// own rank. Deliberately stricter than <see cref="DungeonVisits"/>, which counts walking in: a trip that
+    /// found the stairs early and left is not the same deed as one that swept the floor first.
+    /// </summary>
+    public int HigherRankDungeonsCleared { get; set; }
+
+    /// <summary>The same, below their own rank — the careful half of the same habit.</summary>
+    public int LowerRankDungeonsCleared { get; set; }
 }

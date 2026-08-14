@@ -28,12 +28,16 @@ public static class Forge
     /// What forged gear is worth compared to the same rank off the shelf.
     ///
     /// Shop gear averages 0.8 per rank step and rolls around it with a 15% spread, so its lucky tail reaches
-    /// well past its mean — a flat 1.0 here looked like a 25% improvement but was actually beaten by a good
-    /// shop roll at every single rank, which would make a whole set of ore worth less than shopping carefully.
-    /// At 1.25 the smith's work is above anything the shop realistically produces (a shop roll would have to
-    /// come in near four standard deviations high), and it never rolls at all — forged gear is exact.
+    /// well past its mean. At 1.25 the smith's work beat a same-rank shop roll but only just — and the shop
+    /// used to sell every rank to everybody, so bronze (rank F) was being compared against the 黒檀 set (rank D)
+    /// that any beginner could afford. Against that it simply lost, which made a season of hunting metal slimes
+    /// worth less than an afternoon's shopping.
+    ///
+    /// At 2.0 a forged piece is worth about what the shop sells two ranks higher, which is the gap that makes
+    /// ore worth carrying home. The forge's fees rose with it — the ore is the scarce part, but the smith's
+    /// work should not be cheap either.
     /// </summary>
-    private const double ForgedBonusPerRank = 1.25;
+    private const double ForgedBonusPerRank = 2.0;
 
     public static int ForgedBonus(Rank rank) =>
         Math.Max(1, (int)Math.Round(ForgedBonusPerRank * Math.Pow(CombatMath.RankStep, (int)rank - 1)));
@@ -145,13 +149,13 @@ public static class Forge
         // Keyed to the rank each ore now sits at. The figures themselves are the ones already tuned against
         // measured income per metal — they simply moved with the metals when the ladder was packed to one ore
         // per rank. Rank B has no ore at all, so it never reaches this table.
-        Rank.F => 180,      // bronze — deliberately cheap, see below
-        Rank.E => 1100,     // iron
-        Rank.D => 1600,     // copper
-        Rank.C => 2400,     // silver
-        Rank.A => 3600,     // adamantite
-        Rank.S => 5400,     // mithril
-        Rank.SS => 8000,    // orichalcum
+        Rank.F => 400,      // bronze — still the cheap one, see below
+        Rank.E => 1800,     // iron
+        Rank.D => 2800,     // copper
+        Rank.C => 4200,     // silver
+        Rank.A => 6400,     // adamantite
+        Rank.S => 9600,     // mithril
+        Rank.SS => 14000,   // orichalcum
         // No ore has its gear at the other ranks, but a fee is defined for all of them so adding one later
         // cannot silently produce a free recipe.
         _ => (int)rank * (int)rank * 20,

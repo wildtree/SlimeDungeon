@@ -35,16 +35,16 @@ public sealed class Stats
     {
         int Roll(double baseValue) => Math.Max(1, (int)Math.Floor(RandomUtil.Shared.NextGaussian(baseValue, 1.5)));
 
-        // HP is the one figure the whole difficulty curve is anchored to, because growth is now a fixed multiple
-        // per rank band — so this number sets how many blows an adventurer survives at *every* rank, not just
-        // this one. At 15 the measured curve came out at about two blows from a same-rank slime all game and
-        // barely one and a half when under-geared, which is past "tight" and into "cannot be played". Thirty
-        // puts a same-rank fight at four or five blows and an under-geared one at under three: a single slime
-        // above your gear is a real risk, and a pack of them still kills you inside a round.
+        // HP is the one figure the whole difficulty curve is anchored to, because growth is a fixed multiple per
+        // rank band — so this number sets how many blows an adventurer survives at *every* rank, not just this
+        // one. Fifteen came out at about two blows all game, which is past "tight" and into "unplayable";
+        // thirty came out at four or five, which played as a walkover once armour was counted. Twenty-two puts a
+        // same-rank fight at three to four blows: enough room to reach for a herb or run, not enough to stand
+        // there trading hits, and a pack still kills you inside a round or two.
         //
         // MP is deliberately left where it was. It is spent by the cast rather than absorbed by the round, and
         // the spell costs are set against this figure to buy about four casts from a full bar at any rank.
-        var hp = Roll(30);
+        var hp = Roll(20);
         var mp = Roll(10);
         return new Stats
         {
@@ -77,11 +77,22 @@ public sealed class Stats
     ];
 
     /// <summary>
-    /// What HP and MP are multiplied by across one rank band. Deliberately above the enemy ladder's 1.6, so
-    /// survivability creeps up from about two blows at rank H to four or five at SS — dangerous at the bottom,
-    /// never comfortable, and never the hundreds of blows it used to be.
+    /// What HP is multiplied by across one rank band — deliberately the same 1.6 the enemy ladder climbs at.
+    ///
+    /// HP and MP used to share one rate of 1.75. Above the enemy's 1.6 it compounds: measured, a same-rank fight
+    /// went from 4.3 blows survived at rank H to 7.1 at SS, so the climb quietly got safer the further it went.
+    /// That is the opposite of what "適正" is supposed to mean. Matching 1.6 exactly holds the ratio flat, and
+    /// the whole curve then sits wherever <see cref="RollInitial"/>'s HP base puts rank H.
     /// </summary>
-    private const double VitalPerRank = 1.75;
+    private const double HpPerRank = 1.6;
+
+    /// <summary>
+    /// MP sits a shade above it. It is not a buffer that soaks up a round the way HP is — it is spent by the
+    /// cast, against spell costs that climb at the full 1.6, and the low ranks lose the most to the one-point
+    /// minimum growth on a bar of nine. This much margin lands a full bar at four or five casts at every rank,
+    /// which is what the spell costs were set against.
+    /// </summary>
+    private const double MpPerRank = 1.65;
 
     /// <summary>
     /// And what STR/INT/DEX/AGL are multiplied by. Far gentler on purpose. These feed
@@ -121,18 +132,25 @@ public sealed class Stats
         // A straight floor(current * rate) rounds down to 0 for any small stat, which reads as the character
         // never growing at all. The flat minimum of one point guarantees visible progress; it used to be two
         // for HP and MP, which at these gentler rates would have overwhelmed the curve at low levels.
+        //
+        // Rounding rather than flooring matters more than it looks. Flooring throws away half a point every
+        // level, and because the next level's growth is a fraction of the result, that loss compounds: measured
+        // over ninety-nine levels it turned a 1.6-per-rank curve into about 1.55, which is enough to drift a
+        // same-rank fight from four blows survived down to two and a half by rank SS. Rounding is unbiased, so
+        // the rates above are the rates the player actually gets.
         int Grow(int current, double rate)
         {
             var jittered = RandomUtil.Shared.NextGaussian(rate, rate * 0.15);
-            var amount = Math.Max(1, (int)Math.Floor(current * jittered));
+            var amount = Math.Max(1, (int)Math.Round(current * jittered));
             return current + amount;
         }
 
-        var vital = PerLevelRate(newLevel, VitalPerRank);
+        var hp = PerLevelRate(newLevel, HpPerRank);
+        var mp = PerLevelRate(newLevel, MpPerRank);
         var stat = PerLevelRate(newLevel, StatPerRank);
 
-        MaxHp = Grow(MaxHp, vital);
-        MaxMp = Grow(MaxMp, vital);
+        MaxHp = Grow(MaxHp, hp);
+        MaxMp = Grow(MaxMp, mp);
         Str = Grow(Str, stat);
         Int = Grow(Int, stat);
         Dex = Grow(Dex, stat);

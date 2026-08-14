@@ -106,6 +106,39 @@ public static class EquipmentNames
         [Rank.SS] = "神霊甘露",
     };
 
+    /// <summary>
+    /// The substance each rank's gear is worked from, as a word on its own. The shop counter groups its stock
+    /// by these rather than listing every piece of every rank in one column — seven ranks of five armour pieces
+    /// is thirty-five rows to scroll through, where "布・革・樫…" is seven.
+    ///
+    /// They are held separately from the item names above rather than parsed out of them, because the names do
+    /// not all split the same way: 革靴 has no の to cut at, and 布の帽子 sits beside 木の盾 at the same rank.
+    /// A table that says outright what each rank is called cannot be wrong about either.
+    /// </summary>
+    private static readonly Dictionary<Rank, string> WeaponMaterials = new()
+    {
+        [Rank.H] = "木", [Rank.G] = "石", [Rank.F] = "樫", [Rank.E] = "翡翠", [Rank.D] = "黒檀",
+        [Rank.C] = "黒曜石", [Rank.B] = "古木", [Rank.A] = "水晶", [Rank.S] = "神木", [Rank.SS] = "星石",
+    };
+
+    /// <summary>
+    /// Armour parts ways with the weapons at the bottom of the ladder — cloth and leather before the woodwork
+    /// starts — and rejoins it from 樫 upwards.
+    ///
+    /// Two ranks name two substances, and deliberately so: there is no such thing as a cloth shield or a cloth
+    /// boot, so rank H is worked in 布 above the waist and 木 below it, and rank E hangs a stone shield off a
+    /// thick-leather suit. The shelf says both rather than picking one and quietly misdescribing two of its own
+    /// five pieces.
+    /// </summary>
+    private static readonly Dictionary<Rank, string> ArmourMaterials = new()
+    {
+        [Rank.H] = "布・木", [Rank.G] = "革", [Rank.F] = "樫", [Rank.E] = "厚革・石", [Rank.D] = "黒檀",
+        [Rank.C] = "黒曜石", [Rank.B] = "古木", [Rank.A] = "水晶", [Rank.S] = "神木", [Rank.SS] = "星石",
+    };
+
+    public static string WeaponMaterial(Rank rank) => WeaponMaterials[rank];
+    public static string ArmourMaterial(Rank rank) => ArmourMaterials[rank];
+
     public static string Sword(Rank rank) => Swords[rank];
     public static string Wand(Rank rank) => Wands[rank];
     public static string Shield(Rank rank) => Shields[rank];

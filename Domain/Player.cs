@@ -71,6 +71,35 @@ public sealed class Player
 
     public List<Item> Trophies { get; set; } = new();
 
+    /// <summary>
+    /// The name of every distinct piece this adventurer has ever had on. Kept because the enthusiast titles ask
+    /// what you have worn, not what you own or still own — the same reason <see cref="CraftedRecipes"/> exists
+    /// for the smith's side of it. A sword and a wand cannot be held at once and gear gets sold on, so any
+    /// condition phrased against the body at one moment would be unearnable.
+    ///
+    /// Names rather than items: the shop rolls fresh stats onto every piece it sells, so two 樫の兜 are
+    /// different objects, and what the title is actually about is having worn a 樫の兜 at all. Old saves load
+    /// with this empty and fill in from what is currently equipped — see <see cref="NoteWornGear"/>.
+    /// </summary>
+    public List<string> WornGear { get; set; } = new();
+
+    /// <summary>
+    /// Folds whatever is on the body right now into <see cref="WornGear"/>. Called when titles are refreshed
+    /// rather than only when something is equipped, so a character who has been wearing the same breastplate
+    /// since before this was recorded still gets the credit for it.
+    /// </summary>
+    public void NoteWornGear()
+    {
+        foreach (var item in Equipment.Values)
+            NoteWorn(item);
+    }
+
+    public void NoteWorn(Item item)
+    {
+        if (item.IsEquippable && !WornGear.Contains(item.Name))
+            WornGear.Add(item.Name);
+    }
+
     /// <summary>Every title earned so far, in the order they were awarded. Titles are never lost.</summary>
     public List<TitleId> EarnedTitles { get; set; } = new();
 
@@ -366,6 +395,7 @@ public sealed class Player
 
         Equipment.TryGetValue(slot, out displaced);
         Equipment[slot] = item;
+        NoteWorn(item);
         return true;
     }
 

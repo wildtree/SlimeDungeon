@@ -103,24 +103,34 @@ public static class EquipOfferPopup
     /// </summary>
     public static bool IsUpgrade(Player player, Item item)
     {
-        foreach (var slot in Slots(item))
-        {
-            if (!player.Equipment.TryGetValue(slot, out var current))
-                return true;
+        var slots = Slots(item);
 
-            // Only ever compared against its own kind. A sword is not "better" than the shield in that hand,
-            // it is a different decision about how to fight — and that one stays the player's to make.
-            if (current.Category != item.Category)
-                continue;
-            if (item.Category == ItemCategory.Weapon && current.WeaponKind != item.WeaponKind)
-                continue;
+        // A slot standing empty is always worth offering: there is nothing to weigh it against and nothing to
+        // lose by putting it on.
+        if (slots.Any(slot => !player.Equipment.ContainsKey(slot)))
+            return true;
 
-            if (Merit(item) > Merit(current))
-                return true;
-        }
+        // Otherwise it is only ever compared against its own kind. A sword is not "better" than the shield in
+        // that hand, it is a different decision about how to fight.
+        var comparable = slots
+            .Select(slot => player.Equipment[slot])
+            .Where(current => SameKind(current, item))
+            .ToArray();
 
-        return false;
+        // Nothing of its own kind is worn at all — which used to fall through to "not an upgrade" and say
+        // nothing. That is the case that went quiet: hold a wand and a shield, buy a sword, and both hands are
+        // full of things a sword cannot be compared with, so the shop never asked. Having no sword at all is
+        // precisely when being offered one matters most.
+        if (comparable.Length == 0)
+            return true;
+
+        return comparable.Any(current => Merit(item) > Merit(current));
     }
+
+    /// <summary>Two pieces that answer the same question — and for weapons, in the same way.</summary>
+    private static bool SameKind(Item a, Item b) =>
+        a.Category == b.Category
+        && (a.Category != ItemCategory.Weapon || a.WeaponKind == b.WeaponKind);
 
     /// <summary>
     /// The single number that decides better-or-worse within a kind: armour, helmets and shields are their DEF,

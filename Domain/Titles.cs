@@ -49,10 +49,16 @@ public enum TitleId
 
     OreGatherer, OreHoarder, ApprenticeSmith, MasterSmith,
     GemSeeker, GemCollector, Gemologist, JewellersFriend,
+
+    WoodMania, ClothMania, StoneMania, LeatherMania, OakMania, JadeMania, ThickLeatherMania,
+    EbonyMania, ObsidianMania, AncientWoodMania, CrystalMania, DivineWoodMania, StarstoneMania,
+
+    Daring, Valiant, Fearless,
+    Careful, Prudent, Circumspect,
 }
 
 /// <summary>Broad grouping, used to sort the title list into something readable.</summary>
-public enum TitleCategory { Beginning, Slaying, Bestiary, Quests, Delving, Guild, Growth, Craft, Living, Forging }
+public enum TitleCategory { Beginning, Slaying, Bestiary, Quests, Delving, Guild, Growth, Craft, Living, Forging, Outfitting }
 
 /// <summary>
 /// A title and the deed that earns it. <see cref="Requirement"/> is shown to the player for titles they have not
@@ -141,13 +147,17 @@ public static class Titles
         new(TitleId.AntidoteMaster, "解毒の名手", TitleCategory.Quests,
             "毒消し草採取の依頼を20件こなす", p => p.Counters.AntidoteQuestsCompleted >= 20),
 
-        // Delving.
+        // Delving. Raised from 10/50/150, which was set before it was clear how much of this game is simply
+        // going back down the stairs. Delving is the only activity there is, and a hundred and fifty trips is
+        // something a player passes without noticing — so these now sit against the same horizon as the clear
+        // counts below rather than being over inside the first fortnight. Titles are never revoked, so nobody
+        // loses one they already hold; only the pace of earning them changes.
         new(TitleId.DungeonRegular, "ダンジョン慣れ", TitleCategory.Delving,
-            "ダンジョンに10回もぐる", p => p.Counters.DungeonVisits >= 10),
-        new(TitleId.DungeonHabitue, "ダンジョンの常連", TitleCategory.Delving,
             "ダンジョンに50回もぐる", p => p.Counters.DungeonVisits >= 50),
+        new(TitleId.DungeonHabitue, "ダンジョンの常連", TitleCategory.Delving,
+            "ダンジョンに250回もぐる", p => p.Counters.DungeonVisits >= 250),
         new(TitleId.DungeonDweller, "ダンジョンの住人", TitleCategory.Delving,
-            "ダンジョンに150回もぐる", p => p.Counters.DungeonVisits >= 150),
+            "ダンジョンに750回もぐる", p => p.Counters.DungeonVisits >= 750),
 
         // Standing in the guild.
         new(TitleId.Journeyman, "一人前の冒険者", TitleCategory.Guild,
@@ -217,13 +227,44 @@ public static class Titles
             $"全{Gems.All.Length}種類の宝石を手に入れる", p => p.GemsSeen.Distinct().Count() >= Gems.All.Length),
         new(TitleId.JewellersFriend, "宝飾ギルドの友", TitleCategory.Forging,
             "宝石調達の依頼を5件こなす", p => p.Counters.GemQuestsCompleted >= 5),
+
+        // Delving above and below your station. Both are counted only on a dungeon taken apart completely —
+        // every chest opened, then out by the stairs — because "went in" says nothing about nerve either way.
+        new(TitleId.Daring, "勇敢な冒険者", TitleCategory.Delving,
+            "格上のダンジョンを100回攻略する", p => p.Counters.HigherRankDungeonsCleared >= 100),
+        new(TitleId.Valiant, "勇猛な挑戦者", TitleCategory.Delving,
+            "格上のダンジョンを500回攻略する", p => p.Counters.HigherRankDungeonsCleared >= 500),
+        new(TitleId.Fearless, "不屈の勇者", TitleCategory.Delving,
+            "格上のダンジョンを1000回攻略する", p => p.Counters.HigherRankDungeonsCleared >= 1000),
+
+        new(TitleId.Careful, "慎重な冒険者", TitleCategory.Delving,
+            "格下のダンジョンを100回攻略する", p => p.Counters.LowerRankDungeonsCleared >= 100),
+        new(TitleId.Prudent, "用心深い探索者", TitleCategory.Delving,
+            "格下のダンジョンを500回攻略する", p => p.Counters.LowerRankDungeonsCleared >= 500),
+        new(TitleId.Circumspect, "石橋を叩く者", TitleCategory.Delving,
+            "格下のダンジョンを1000回攻略する", p => p.Counters.LowerRankDungeonsCleared >= 1000),
     ];
+
+    /// <summary>
+    /// One per material, built from <see cref="MaterialSets"/> so the pieces a title asks for are always the
+    /// pieces that exist. The condition is having <em>worn</em> each of them at least once — a sword and a wand
+    /// cannot be held at the same time, so anything phrased against the body at one moment is unearnable by
+    /// construction, the same trap the smith's collector titles sidestep by counting what was forged.
+    /// </summary>
+    private static IEnumerable<TitleDefinition> MaterialDefinitions() =>
+        MaterialSets.All.Select(set => new TitleDefinition(
+            set.Title,
+            $"{set.Material}マニア",
+            TitleCategory.Outfitting,
+            $"{set.Material}の武器・防具{set.Pieces.Length}種をすべて装備する",
+            p => MaterialSets.HasWornAll(p, set)));
 
     /// <summary>
     /// Declared after <see cref="Fixed"/> and <see cref="CollectorDefinitions"/> on purpose: static field
     /// initialisers run in source order, so putting this first would build the list out of a null array.
     /// </summary>
-    public static readonly TitleDefinition[] All = [.. Fixed, .. CollectorDefinitions()];
+    public static readonly TitleDefinition[] All =
+        [.. Fixed, .. CollectorDefinitions(), .. MaterialDefinitions()];
 
     private static readonly Dictionary<TitleId, TitleDefinition> ById =
         All.ToDictionary(t => t.Id);
@@ -238,6 +279,11 @@ public static class Titles
     /// </summary>
     public static List<TitleDefinition> Refresh(Player player)
     {
+        // Credit for what is already on the body. Equipping records itself, but a character who has been
+        // wearing the same 革の鎧 since before any of this was tracked would otherwise never be credited for
+        // it — and neither would the starting gear, which is placed directly rather than equipped.
+        player.NoteWornGear();
+
         var gained = new List<TitleDefinition>();
         foreach (var title in All)
         {

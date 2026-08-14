@@ -133,6 +133,7 @@ public sealed class DungeonScreen : IScreen
         if (MenuNav.Confirmed(input) && _session.IsOnStairs)
         {
             player.DayCount++;
+            RecordClear(player);
             // Written out here rather than left to the destination. The guild used to save on arrival and the
             // stairs always led to the guild; they lead back to the dungeon entrance now, so without this a
             // whole trip's loot and levels would be lost by quitting from anywhere but the counter.
@@ -479,6 +480,26 @@ public sealed class DungeonScreen : IScreen
         player.Bag.Remove(discarded);
         _chestSwap = null;
         OpenChest(ctx, chest);
+    }
+
+    /// <summary>
+    /// Counts a floor taken apart completely — every chest opened, mimics included, and then out by the stairs.
+    ///
+    /// Rank is compared against the adventurer's own at the moment they leave, which is what makes the two
+    /// counters mean opposite things: going up is nerve, going down is caution. A dungeon of your own rank is
+    /// neither and counts for neither. An empty floor with no chests on it is vacuously swept, which is correct
+    /// — there was nothing left behind.
+    /// </summary>
+    private void RecordClear(Player player)
+    {
+        if (!_session.Map.Chests.All(c => c.Opened))
+            return;
+
+        var rank = _session.Map.DungeonRank;
+        if (rank > player.Rank)
+            player.Counters.HigherRankDungeonsCleared++;
+        else if (rank < player.Rank)
+            player.Counters.LowerRankDungeonsCleared++;
     }
 
     private void OpenChest(GameContext ctx, Chest chest)
