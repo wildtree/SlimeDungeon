@@ -271,20 +271,33 @@ public sealed class OptionsOverlay
     }
 
     /// <summary>
-    /// The four face buttons by the letters printed on them, and everything else by SDL's own name. Deliberately
-    /// positional — South is the bottom button whatever the pad calls it — since that is what the player's thumb
-    /// actually knows.
+    /// One fixed name per button, whatever pad is plugged in.
+    ///
+    /// This used to hedge — "下(A/B)" for South, naming both the layouts a bottom button might be lettered as —
+    /// on the theory that covering every pad was more helpful than picking one. It is not: a label that offers
+    /// two answers makes the reader do the work of deciding which applies to them, which is harder than reading
+    /// one name that might not match the plastic. And the label barely matters here anyway, because a binding
+    /// is made by pressing the actual button, not by finding its name in a list.
+    ///
+    /// So one layout is chosen and used consistently. Triggers are deliberately absent: SDL reports L2 and R2
+    /// as axes rather than buttons (<see cref="SDL.GamepadAxis.LeftTrigger"/>), so there is no button event to
+    /// capture and nothing that could be bound to them.
     /// </summary>
     private static string PadName(SDL.GamepadButton button) => button switch
     {
-        SDL.GamepadButton.South => "下(A/B)",
-        SDL.GamepadButton.East => "右(B/A)",
-        SDL.GamepadButton.West => "左(X/Y)",
-        SDL.GamepadButton.North => "上(Y/X)",
+        SDL.GamepadButton.East => "A",
+        SDL.GamepadButton.South => "B",
+        SDL.GamepadButton.North => "X",
+        SDL.GamepadButton.West => "Y",
+        SDL.GamepadButton.LeftShoulder => "L1",
+        SDL.GamepadButton.RightShoulder => "R1",
+        SDL.GamepadButton.LeftStick => "L3",
+        SDL.GamepadButton.RightStick => "R3",
+        SDL.GamepadButton.Back => "SELECT",
         SDL.GamepadButton.Start => "START",
-        SDL.GamepadButton.Back => "BACK",
-        SDL.GamepadButton.LeftShoulder => "L",
-        SDL.GamepadButton.RightShoulder => "R",
+        SDL.GamepadButton.Guide => "GUIDE",
+        // Paddles, touchpads and the assorted Misc buttons exist on some pads and are bindable; SDL's own name
+        // is a poor label but an honest one, and better than showing a blank for a button that works.
         _ => button.ToString(),
     };
 }

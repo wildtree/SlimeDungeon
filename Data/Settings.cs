@@ -49,12 +49,14 @@ public sealed class Settings
     public static readonly IReadOnlyDictionary<GameAction, SDL.GamepadButton> DefaultPadButtons =
         new Dictionary<GameAction, SDL.GamepadButton>
         {
-            [GameAction.Confirm] = SDL.GamepadButton.South,
-            [GameAction.Cancel] = SDL.GamepadButton.East,
-            [GameAction.Menu] = SDL.GamepadButton.West,
-            // Sits alongside Menu rather than anywhere near Confirm or Cancel, because leaving a room by
-            // accident is a worse mistake than opening a menu by accident.
-            [GameAction.Travel] = SDL.GamepadButton.North,
+            // Named for the letters the options screen prints, which is the layout the labels commit to:
+            // East is A, South is B, North is X, West is Y.
+            [GameAction.Confirm] = SDL.GamepadButton.South,   // B
+            [GameAction.Cancel] = SDL.GamepadButton.East,     // A
+            [GameAction.Menu] = SDL.GamepadButton.North,      // X
+            // Travel sits beside Menu on the upper pair rather than anywhere near Confirm or Cancel, because
+            // leaving a room by accident is a worse mistake than opening a menu by accident.
+            [GameAction.Travel] = SDL.GamepadButton.West,     // Y
         };
 
     public SDL.Keycode KeyFor(GameAction action) =>
